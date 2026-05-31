@@ -290,10 +290,11 @@ CREATE TRIGGER parametros_audit
 -- Patrón: ON CONFLICT DO NOTHING para que un re-run del init.sql no duplique.
 
 -- ── Parámetro inicial: precio del combustible ─────────────────────────────
+-- Moneda: PYG (guaraní paraguayo). Precio realista de gasoil 2025 ≈ 8000 PYG/L.
 INSERT INTO parametros (clave, valor, descripcion)
 VALUES (
     'fuel_price_per_liter',
-    jsonb_build_object('amount', 75.00, 'currency', 'UYU'),
+    jsonb_build_object('amount', 8000, 'currency', 'PYG'),
     'Precio del litro de combustible. Snapshot persistido en cada asignación.'
 ) ON CONFLICT (clave) DO NOTHING;
 
@@ -346,7 +347,7 @@ ON CONFLICT DO NOTHING;
 -- ── Asignación de ejemplo (para la solicitud en estado 'asignada') ──────
 -- Frigorífico del Este (120 cabezas, 132.50 km) → camión XYZ9876 (cap 80, consumo 0.550).
 -- HAY sobrecapacidad: 120 > 80.
--- Costo = 132.50 * 0.550 * 75.00 = 5465.625 → 5465.63
+-- Costo = 132.50 * 0.550 * 8000 = 583000 PYG
 INSERT INTO asignaciones (
     solicitud_id, camion_id,
     cabezas_aplicadas, distancia_km_aplicada, consumo_aplicado,
@@ -356,7 +357,7 @@ INSERT INTO asignaciones (
 SELECT
     s.id, c.id,
     120, 132.50, 0.550,
-    75.00, 5465.63,
+    8000.00, 583000.00,
     TRUE, 'activa'
 FROM solicitudes s, camiones c
 WHERE s.solicitante_nombre = 'Frigorífico del Este'
@@ -368,7 +369,7 @@ LIMIT 1;
 
 -- ── Asignación histórica para la solicitud completada ──────────────────
 -- Estancia Los Olivos (25 cabezas, 117.80 km) → camión MER4521 (cap 35, consumo 0.380).
--- Costo = 117.80 * 0.380 * 75.00 = 3357.30
+-- Costo = 117.80 * 0.380 * 8000 = 358112 PYG
 INSERT INTO asignaciones (
     solicitud_id, camion_id,
     cabezas_aplicadas, distancia_km_aplicada, consumo_aplicado,
@@ -378,7 +379,7 @@ INSERT INTO asignaciones (
 SELECT
     s.id, c.id,
     25, 117.80, 0.380,
-    75.00, 3357.30,
+    8000.00, 358112.00,
     FALSE, 'completada', NOW() - INTERVAL '2 days'
 FROM solicitudes s, camiones c
 WHERE s.solicitante_nombre = 'Estancia Los Olivos'

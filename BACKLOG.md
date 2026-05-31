@@ -695,9 +695,9 @@ Y un botón "Recalcular ruta"
 ```gherkin
 Dado que existe una solicitud "pendiente" con distancia 520 km y 40 cabezas
 Y existe un camión activo con capacidad 60 y consumo 0.45 L/Km
-Y el precio del combustible es 75 UYU/L
+Y el precio del combustible es 75 PYG/L
 Cuando el operador selecciona ese camión y confirma asignación
-Entonces se crea la asignación con costo_combustible = 520 × 0.45 × 75 = 17550 UYU
+Entonces se crea la asignación con costo_combustible = 520 × 0.45 × 75 = 17550 PYG
 Y la asignación persiste: precio_litro_aplicado=75, distancia_km=520, consumo_aplicado=0.45
 Y la solicitud pasa a estado "asignada"
 Y la respuesta es HTTP 201
@@ -749,11 +749,11 @@ Y muestra "Esta solicitud ya tiene un camión asignado. Liberalo antes de reasig
 **Escenario 1: Cambio dinámico al seleccionar camión**
 ```gherkin
 Dado que el operador está en la pantalla de asignación
-Y la distancia es 520 km, precio del combustible es 75 UYU/L
+Y la distancia es 520 km, precio del combustible es 75 PYG/L
 Cuando selecciona el camión con consumo 0.45 L/Km
-Entonces se muestra "Costo estimado: 17 550 UYU"
+Entonces se muestra "Costo estimado: 17 550 PYG"
 Y cuando cambia al camión con consumo 0.55 L/Km
-Entonces el costo se actualiza a 21 450 UYU sin recargar la página
+Entonces el costo se actualiza a 21 450 PYG sin recargar la página
 ```
 
 **Escenario 2: Distancia no disponible**
@@ -769,7 +769,7 @@ Y aparece un warning "Distancia no calculada. Recalcular ruta para ver costo est
 - [ ] **[lib/domain]** Función pura `calcularCostoCombustible({ distanciaKm, consumoLKm, precioLitro })` con guards de inputs. _(US-14)_
 - [ ] **[lib/domain]** Tests unitarios con casos: nominal, inputs inválidos, redondeo a 2 decimales. _(US-14)_
 - [ ] **[FE]** Hook `useFuelCostPreview()` que recibe `camionId` y devuelve el costo en vivo. _(US-14)_
-- [ ] **[FE]** Formato de moneda configurable (default UYU). _(US-14)_
+- [ ] **[FE]** Formato de moneda configurable (default PYG). _(US-14)_
 
 ---
 
@@ -878,7 +878,7 @@ Entonces el sistema responde HTTP 422 con mensaje claro
 
 **Escenario 1: Actualización exitosa**
 ```gherkin
-Dado que el precio actual del combustible es 75 UYU/L
+Dado que el precio actual del combustible es 75 PYG/L
 Cuando el operador ingresa 82.50 y guarda
 Entonces el precio actual pasa a 82.50
 Y se registra una entrada en `parametros_historial` con valor anterior y nuevo

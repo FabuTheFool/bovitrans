@@ -1,15 +1,20 @@
-export function formatCurrency(amount: number, currency = 'UYU'): string {
-  return new Intl.NumberFormat('es-UY', {
+/**
+ * Formato de moneda. PYG (guaraníes paraguayos) se muestra sin decimales
+ * porque no usa fracciones en la práctica; el resto de monedas mantiene 2.
+ */
+export function formatCurrency(amount: number, currency = 'PYG'): string {
+  const isPyg = currency.toUpperCase() === 'PYG';
+  return new Intl.NumberFormat('es-PY', {
     style: 'currency',
     currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: isPyg ? 0 : 2,
+    maximumFractionDigits: isPyg ? 0 : 2,
   }).format(amount);
 }
 
 export function formatKm(km: number | null | undefined): string {
   if (km == null) return '—';
-  return `${km.toLocaleString('es-UY', { maximumFractionDigits: 1 })} km`;
+  return `${km.toLocaleString('es-PY', { maximumFractionDigits: 1 })} km`;
 }
 
 export function formatMinutes(min: number | null | undefined): string {
@@ -21,7 +26,7 @@ export function formatMinutes(min: number | null | undefined): string {
 }
 
 export function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString('es-UY', {
+  return new Date(iso).toLocaleString('es-PY', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',

@@ -3,7 +3,7 @@ import { calcularCostoCombustible } from '../cost';
 
 describe('calcularCostoCombustible', () => {
   it('calcula correctamente el caso nominal del BACKLOG', () => {
-    // US-13 escenario 1: 520 km × 0.45 L/Km × 75 UYU/L = 17 550
+    // US-13 escenario 1: 520 km × 0.45 L/Km × 75 = 17 550 (moneda-agnóstico)
     const { costoTotal, litrosConsumidos } = calcularCostoCombustible({
       distanciaKm: 520,
       consumoLKm: 0.45,
