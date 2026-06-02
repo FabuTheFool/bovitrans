@@ -83,7 +83,32 @@ export async function POST(req: NextRequest) {
         throw businessRule('El camión está inactivo. No puede recibir asignaciones.');
       }
 
-      // 2. Evaluar sobrecapacidad y exigir confirmación explícita (US-15).
+      // 2. INV-03 fail-fast: chequear estado del recurso ANTES que parámetros
+      //    del request. Si la solicitud o el camión ya tienen una asignación
+      //    activa, devolver 409 directo en lugar de fallar más tarde con 422
+      //    (sobrecapacidad) o esperar al unique parcial del INSERT. Esto da
+      //    mensajes más claros y respeta la jerarquía estado > params.
+      const existing = await client.query<{ kind: 'solicitud' | 'camion' }>(
+        `SELECT 'solicitud'::text AS kind FROM asignaciones
+           WHERE solicitud_id = $1 AND estado = 'activa'
+         UNION ALL
+         SELECT 'camion'::text FROM asignaciones
+           WHERE camion_id = $2 AND estado = 'activa'
+         LIMIT 1`,
+        [body.solicitud_id, body.camion_id],
+      );
+      if (existing.rowCount && existing.rowCount > 0) {
+        if (existing.rows[0].kind === 'solicitud') {
+          throw conflict(
+            'La solicitud ya tiene un camión asignado. Liberalo antes de reasignar.',
+          );
+        }
+        throw conflict(
+          'El camión ya tiene una asignación activa en otra solicitud.',
+        );
+      }
+
+      // 3. Evaluar sobrecapacidad y exigir confirmación explícita (US-15).
       const capacityEval = evaluarSobrecapacidad(solicitud.cabezas, camion.capacidad_max);
       if (capacityEval.excedida && !body.acepta_sobrecapacidad) {
         throw businessRule(
@@ -97,19 +122,20 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // 3. Snapshot del precio actual del combustible.
+      // 4. Snapshot del precio actual del combustible.
       const fuelPrice = await getFuelPrice(client);
 
-      // 4. Cálculo del costo (función pura, testeada).
+      // 5. Cálculo del costo (función pura, testeada).
       const { costoTotal } = calcularCostoCombustible({
         distanciaKm: solicitud.distancia_km,
         consumoLKm: camion.consumo_l_km,
         precioLitro: fuelPrice.amount,
       });
 
-      // 5. Insert. Los unique parciales (asignaciones_solicitud_activa_uniq,
-      //    asignaciones_camion_activa_uniq) garantizan INV-03 — si hay
-      //    conflicto Postgres lanza 23505 y handleApiError lo mapea a 409.
+      // 6. Insert. Los unique parciales son la red de seguridad final contra
+      //    race conditions: aún con el chequeo previo, dos requests concurrentes
+      //    podrían pasar la validación. El unique parcial garantiza que sólo
+      //    uno se persista y el otro reciba 23505 → 409 vía handleApiError.
       const asignRes = await client.query<AsignacionDTO>(
         `INSERT INTO asignaciones (
             solicitud_id, camion_id,

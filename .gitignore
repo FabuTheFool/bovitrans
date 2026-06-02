@@ -45,3 +45,12 @@ coverage/
 
 # ─── PDF de la pauta (no se versiona la prueba) ─────────────────────────
 *.pdf
+
+# ─── Artifacts de testing / curl (jamás versionar — pueden contener sesiones) ──
+cookies.txt
+jar*.txt
+r[0-9]*.json
+response.json
+response*.json
+assign_*.json
+.pr-body.md

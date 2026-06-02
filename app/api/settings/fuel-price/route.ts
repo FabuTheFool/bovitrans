@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { FuelPriceUpdateSchema } from '@/lib/validators/settings';
 import { getFuelPrice, setFuelPrice } from '@/lib/repositories/settings';
 import { handleApiError } from '@/lib/api/errors';
+import { requireRole } from '@/lib/auth/session';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,6 +26,7 @@ export async function GET() {
  */
 export async function PUT(req: NextRequest) {
   try {
+    await requireRole('admin');
     const body = FuelPriceUpdateSchema.parse(await req.json());
     const updated = await setFuelPrice(body.amount);
     return NextResponse.json({ data: updated });

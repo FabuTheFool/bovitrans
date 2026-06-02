@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import clsx from 'clsx';
 import { api, ApiClientError } from '@/lib/client/api-client';
@@ -28,6 +28,12 @@ export function NewRequestForm() {
   const [modoMapa, setModoMapa] = useState<'origen' | 'destino'>('origen');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const ids = {
+    nombre: useId(),
+    contacto: useId(),
+    cabezas: useId(),
+  };
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -63,31 +69,34 @@ export function NewRequestForm() {
   return (
     <form onSubmit={onSubmit} className="grid gap-6 lg:grid-cols-5">
       <div className="space-y-5 lg:col-span-2">
-        <Field label="Nombre del solicitante">
+        <Field id={ids.nombre} label="Nombre del solicitante">
           <input
+            id={ids.nombre}
             type="text"
             value={nombre}
             onChange={(e) => setNombre(e.target.value)}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
+            className="w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-300"
             required
           />
         </Field>
-        <Field label="Contacto (teléfono / email)" optional>
+        <Field id={ids.contacto} label="Contacto (teléfono / email)" optional>
           <input
+            id={ids.contacto}
             type="text"
             value={contacto}
             onChange={(e) => setContacto(e.target.value)}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
+            className="w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-300"
           />
         </Field>
-        <Field label="Cantidad de cabezas">
+        <Field id={ids.cabezas} label="Cantidad de cabezas">
           <input
+            id={ids.cabezas}
             type="number"
             value={cabezas}
             onChange={(e) => setCabezas(e.target.value)}
             min={1}
             step={1}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
+            className="w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-300"
             required
           />
         </Field>
@@ -110,7 +119,10 @@ export function NewRequestForm() {
         />
 
         {error ? (
-          <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <div
+            role="alert"
+            className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+          >
             {error}
           </div>
         ) : null}
@@ -158,22 +170,24 @@ export function NewRequestForm() {
 }
 
 function Field({
+  id,
   label,
   optional,
   children,
 }: {
+  id: string;
   label: string;
   optional?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <label className="block">
-      <span className="text-sm font-medium text-slate-700">
+    <div>
+      <label htmlFor={id} className="block text-sm font-medium text-slate-700">
         {label}
         {optional ? <span className="ml-1 text-xs text-slate-400">(opcional)</span> : null}
-      </span>
+      </label>
       <div className="mt-1">{children}</div>
-    </label>
+    </div>
   );
 }
 

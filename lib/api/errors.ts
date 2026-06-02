@@ -15,6 +15,8 @@ import { ZodError } from 'zod';
 
 export type ApiErrorCode =
   | 'VALIDATION_ERROR'
+  | 'UNAUTHORIZED'
+  | 'FORBIDDEN'
   | 'NOT_FOUND'
   | 'CONFLICT'
   | 'BUSINESS_RULE'
@@ -33,6 +35,14 @@ export class ApiError extends Error {
 
 export function notFound(message: string, details?: unknown): ApiError {
   return new ApiError('NOT_FOUND', 404, message, details);
+}
+
+export function unauthorized(message = 'No autenticado.', details?: unknown): ApiError {
+  return new ApiError('UNAUTHORIZED', 401, message, details);
+}
+
+export function forbidden(message: string, details?: unknown): ApiError {
+  return new ApiError('FORBIDDEN', 403, message, details);
 }
 
 export function conflict(message: string, details?: unknown): ApiError {
@@ -74,6 +84,8 @@ export function handleApiError(err: unknown): NextResponse {
   }
 
   // Errores de Postgres que mapeamos a códigos HTTP semánticos.
+  // En prod NO se expone constraint name ni mensaje crudo de pg (info disclosure).
+  const isProd = process.env.NODE_ENV === 'production';
   const pgErr = err as { code?: string; message?: string; constraint?: string };
   if (typeof pgErr.code === 'string') {
     if (pgErr.code === '23505') {
@@ -83,7 +95,9 @@ export function handleApiError(err: unknown): NextResponse {
           error: {
             code: 'CONFLICT',
             message: 'Violación de unicidad.',
-            details: { constraint: pgErr.constraint, hint: pgErr.message },
+            details: isProd
+              ? undefined
+              : { constraint: pgErr.constraint, hint: pgErr.message },
           },
         },
         { status: 409 },
@@ -95,8 +109,10 @@ export function handleApiError(err: unknown): NextResponse {
         {
           error: {
             code: 'BUSINESS_RULE',
-            message: pgErr.message ?? 'Violación de regla de negocio.',
-            details: { constraint: pgErr.constraint },
+            message: isProd
+              ? 'Violación de regla de negocio.'
+              : (pgErr.message ?? 'Violación de regla de negocio.'),
+            details: isProd ? undefined : { constraint: pgErr.constraint },
           },
         },
         { status: 422 },

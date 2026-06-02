@@ -7,6 +7,7 @@ import { api, ApiClientError } from '@/lib/client/api-client';
 import { calcularCostoCombustible } from '@/lib/domain/cost';
 import { evaluarSobrecapacidad, sugerirCamionesAlternativos } from '@/lib/domain/capacity';
 import { CapacityAlert } from '@/components/CapacityAlert';
+import { ConfirmModal } from '@/components/Modal';
 import { formatCurrency } from '@/lib/client/format';
 
 interface Camion {
@@ -35,6 +36,7 @@ export function AssignForm({
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const selected = camiones.find((c) => c.id === selectedId) ?? null;
 
@@ -72,20 +74,18 @@ export function AssignForm({
     );
   }, [capEval, cabezas, camiones]);
 
-  async function onConfirmar() {
+  function onClickConfirmar() {
     if (!selected) return;
     setError(null);
-
-    if (
-      capEval?.excedida &&
-      !confirm(
-        `⚠ El camión ${selected.patente} tiene capacidad ${selected.capacidad_max} y la carga es ${cabezas}.\n` +
-          `Confirmás tomar el riesgo de sobrecapacidad?`,
-      )
-    ) {
-      return;
+    if (capEval?.excedida) {
+      setConfirmOpen(true);
+    } else {
+      void doAssign();
     }
+  }
 
+  async function doAssign() {
+    if (!selected) return;
     setSubmitting(true);
     try {
       await api.post('/api/assignments', {
@@ -99,6 +99,7 @@ export function AssignForm({
       setError(err instanceof ApiClientError ? err.message : 'Error inesperado.');
     } finally {
       setSubmitting(false);
+      setConfirmOpen(false);
     }
   }
 
@@ -224,7 +225,7 @@ export function AssignForm({
         </button>
         <button
           type="button"
-          onClick={onConfirmar}
+          onClick={onClickConfirmar}
           disabled={submitting || !selected}
           className={clsx(
             'rounded-md px-4 py-2 text-sm font-medium text-white shadow-sm transition',
@@ -241,6 +242,29 @@ export function AssignForm({
               : 'Confirmar asignación'}
         </button>
       </div>
+
+      <ConfirmModal
+        open={confirmOpen}
+        title="Confirmar asignación con sobrecapacidad"
+        description={
+          selected && capEval
+            ? `El camión ${selected.patente} tiene capacidad ${selected.capacidad_max} y la carga es ${cabezas}. La asignación quedará marcada con sobrecapacidad para auditoría.`
+            : undefined
+        }
+        confirmLabel="Sí, asumir el riesgo"
+        cancelLabel="Volver"
+        variant="danger"
+        onConfirm={doAssign}
+        onClose={() => setConfirmOpen(false)}
+      >
+        {capEval ? (
+          <ul className="list-disc space-y-1 pl-5 text-xs">
+            <li>Excedente: <strong>{capEval.excedente} cabezas</strong></li>
+            <li>Viajes necesarios (si se respeta capacidad): <strong>{capEval.viajesNecesarios}</strong></li>
+            <li>La asignación quedará con <code>con_sobrecapacidad=true</code> en el registro.</li>
+          </ul>
+        ) : null}
+      </ConfirmModal>
     </div>
   );
 }

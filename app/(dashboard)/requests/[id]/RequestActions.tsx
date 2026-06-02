@@ -4,7 +4,10 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api, ApiClientError } from '@/lib/client/api-client';
+import { ConfirmModal, PromptModal } from '@/components/Modal';
 import type { SolicitudEstado } from '@/components/StatusChip';
+
+type Action = 'cancel' | 'release' | null;
 
 export function RequestActions({
   id,
@@ -16,18 +19,18 @@ export function RequestActions({
   asignacionId: number | null;
 }) {
   const router = useRouter();
-  const [busy, setBusy] = useState<'cancel' | 'release' | null>(null);
+  const [busy, setBusy] = useState<Action>(null);
   const [error, setError] = useState<string | null>(null);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [releaseOpen, setReleaseOpen] = useState(false);
 
-  async function cancelar() {
-    const motivo = prompt('Motivo de cancelación (opcional):') ?? undefined;
-    if (motivo === null) return;
-    if (!confirm('¿Cancelar definitivamente esta solicitud?')) return;
+  async function cancelar(motivo: string) {
     setBusy('cancel');
     setError(null);
     try {
       await api.post(`/api/transport-requests/${id}/cancel`, motivo ? { motivo } : undefined);
       router.refresh();
+      setCancelOpen(false);
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Error inesperado.');
     } finally {
@@ -37,12 +40,12 @@ export function RequestActions({
 
   async function liberar() {
     if (!asignacionId) return;
-    if (!confirm('¿Liberar la asignación actual? La solicitud volverá a "pendiente".')) return;
     setBusy('release');
     setError(null);
     try {
       await api.post(`/api/assignments/${asignacionId}/release`);
       router.refresh();
+      setReleaseOpen(false);
     } catch (err) {
       setError(err instanceof ApiClientError ? err.message : 'Error inesperado.');
     } finally {
@@ -67,24 +70,49 @@ export function RequestActions({
         ) : null}
         {canRelease ? (
           <button
-            onClick={liberar}
+            type="button"
+            onClick={() => setReleaseOpen(true)}
             disabled={busy !== null}
             className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
           >
-            {busy === 'release' ? 'Liberando…' : 'Liberar asignación'}
+            Liberar asignación
           </button>
         ) : null}
         {canCancel ? (
           <button
-            onClick={cancelar}
+            type="button"
+            onClick={() => setCancelOpen(true)}
             disabled={busy !== null}
             className="rounded-md border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
           >
-            {busy === 'cancel' ? 'Cancelando…' : 'Cancelar solicitud'}
+            Cancelar solicitud
           </button>
         ) : null}
       </div>
-      {error ? <p className="text-xs text-red-600">{error}</p> : null}
+      {error ? <p className="text-xs text-red-600" role="alert">{error}</p> : null}
+
+      <PromptModal
+        open={cancelOpen}
+        title="Cancelar solicitud"
+        description="Esta acción libera el camión asignado (si lo hubiera) y deja la solicitud en estado 'cancelada'. No es reversible."
+        label="Motivo de cancelación (opcional)"
+        placeholder="Ej. cliente reprogramó"
+        confirmLabel="Cancelar solicitud"
+        cancelLabel="Volver"
+        variant="danger"
+        onConfirm={cancelar}
+        onClose={() => setCancelOpen(false)}
+      />
+
+      <ConfirmModal
+        open={releaseOpen}
+        title="Liberar asignación"
+        description="La asignación actual pasa a 'liberada' y la solicitud vuelve a 'pendiente'. El camión queda disponible."
+        confirmLabel="Liberar"
+        cancelLabel="Volver"
+        onConfirm={liberar}
+        onClose={() => setReleaseOpen(false)}
+      />
     </div>
   );
 }

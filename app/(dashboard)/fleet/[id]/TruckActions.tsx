@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, ApiClientError } from '@/lib/client/api-client';
+import { ConfirmModal } from '@/components/Modal';
 
 export function TruckActions({
   id,
@@ -16,25 +17,29 @@ export function TruckActions({
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
-  async function toggleEstado() {
-    const target = estado === 'activo' ? 'inactivo' : 'activo';
-    if (
-      target === 'inactivo' &&
-      !confirm(`¿Dar de baja el camión? Esto lo saca de los selectores de asignación.`)
-    ) {
-      return;
-    }
+  const isDeactivate = estado === 'activo';
+
+  async function doToggle() {
     setBusy(true);
     setError(null);
     try {
-      await api.patch(`/api/trucks/${id}`, { estado: target });
+      await api.patch(`/api/trucks/${id}`, { estado: isDeactivate ? 'inactivo' : 'activo' });
       router.refresh();
+      setConfirmOpen(false);
     } catch (err) {
-      if (err instanceof ApiClientError) setError(err.message);
-      else setError('Error inesperado.');
+      setError(err instanceof ApiClientError ? err.message : 'Error inesperado.');
     } finally {
       setBusy(false);
+    }
+  }
+
+  function onClickToggle() {
+    if (isDeactivate) {
+      setConfirmOpen(true);
+    } else {
+      void doToggle();
     }
   }
 
@@ -47,19 +52,31 @@ export function TruckActions({
         </p>
       ) : null}
       <button
-        onClick={toggleEstado}
+        type="button"
+        onClick={onClickToggle}
         disabled={busy}
         className={
-          estado === 'activo'
+          isDeactivate
             ? 'rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50'
             : 'rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50'
         }
       >
-        {busy ? 'Procesando…' : estado === 'activo' ? 'Dar de baja' : 'Reactivar'}
+        {busy ? 'Procesando…' : isDeactivate ? 'Dar de baja' : 'Reactivar'}
       </button>
       {error ? (
-        <p className="mt-2 text-xs text-red-600">{error}</p>
+        <p className="mt-2 text-xs text-red-600" role="alert">{error}</p>
       ) : null}
+
+      <ConfirmModal
+        open={confirmOpen}
+        title="Dar de baja el camión"
+        description="El camión queda inactivo y deja de aparecer en los selectores de asignación. Las asignaciones históricas se preservan."
+        confirmLabel="Dar de baja"
+        cancelLabel="Volver"
+        variant="danger"
+        onConfirm={doToggle}
+        onClose={() => setConfirmOpen(false)}
+      />
     </div>
   );
 }

@@ -40,17 +40,22 @@ export function FuelPriceForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="mt-4 space-y-3">
-      <label className="block">
-        <span className="text-sm font-medium text-slate-700">Nuevo precio ({currency} / L)</span>
+    <form onSubmit={onSubmit} className="mt-4 space-y-3" noValidate>
+      <div>
+        <label htmlFor="fuel-price-amount" className="block text-sm font-medium text-slate-700">
+          Nuevo precio ({currency} / L)
+        </label>
         <div className="mt-1 flex gap-2">
           <input
+            id="fuel-price-amount"
             type="number"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             min={0.01}
             step={0.01}
-            className="w-40 rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
+            aria-invalid={feedback?.kind === 'err' ? 'true' : 'false'}
+            aria-describedby={feedback ? 'fuel-price-feedback' : undefined}
+            className="w-40 rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-300"
             required
           />
           <button
@@ -61,9 +66,11 @@ export function FuelPriceForm({
             {busy ? 'Guardando…' : 'Actualizar'}
           </button>
         </div>
-      </label>
+      </div>
       {feedback ? (
         <p
+          id="fuel-price-feedback"
+          role={feedback.kind === 'err' ? 'alert' : 'status'}
           className={
             feedback.kind === 'ok'
               ? 'text-sm text-green-700'

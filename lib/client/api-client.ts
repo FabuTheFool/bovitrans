@@ -56,6 +56,17 @@ async function apiCall<T>(input: string, init?: RequestInit): Promise<T> {
   }>;
 
   if (!res.ok) {
+    // 401 fuera de las rutas de auth → la sesión expiró durante el uso.
+    // Redirigir a /login conservando la URL actual como ?next=. Solo en cliente.
+    if (
+      res.status === 401 &&
+      typeof window !== 'undefined' &&
+      !window.location.pathname.startsWith('/login') &&
+      !input.startsWith('/api/auth/')
+    ) {
+      const next = encodeURIComponent(window.location.pathname + window.location.search);
+      window.location.assign(`/login?next=${next}`);
+    }
     const e = json.error ?? { code: 'INTERNAL_ERROR' as const, message: 'Error desconocido.' };
     throw new ApiClientError(e.code, res.status, e.message, e.details);
   }

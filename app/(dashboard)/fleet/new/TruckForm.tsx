@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useId, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { api, ApiClientError } from '@/lib/client/api-client';
 import { CamionCreateSchema } from '@/lib/validators/truck';
@@ -14,6 +14,12 @@ export function TruckForm() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const ids = {
+    patente: useId(),
+    capacidad: useId(),
+    consumo: useId(),
+  };
 
   const normalizedPreview = patente ? normalizarPatente(patente) : '';
 
@@ -59,6 +65,7 @@ export function TruckForm() {
   return (
     <form onSubmit={onSubmit} className="space-y-5 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
       <Field
+        id={ids.patente}
         label="Patente / Matrícula"
         hint={
           normalizedPreview && normalizedPreview !== patente
@@ -68,46 +75,57 @@ export function TruckForm() {
         error={fieldErrors.patente}
       >
         <input
+          id={ids.patente}
           type="text"
           value={patente}
           onChange={(e) => setPatente(e.target.value)}
           placeholder="ABC1234"
           autoCapitalize="characters"
-          className="w-full rounded-md border border-slate-300 px-3 py-2 font-mono uppercase shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
+          aria-invalid={!!fieldErrors.patente}
+          aria-describedby={`${ids.patente}-msg`}
+          className="w-full rounded-md border border-slate-300 px-3 py-2 font-mono uppercase shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-300"
           required
         />
       </Field>
 
       <Field
+        id={ids.capacidad}
         label="Capacidad máxima (cabezas)"
         hint="Cantidad máxima que el camión puede llevar de forma segura en un viaje."
         error={fieldErrors.capacidad_max}
       >
         <input
+          id={ids.capacidad}
           type="number"
           value={capacidad}
           onChange={(e) => setCapacidad(e.target.value)}
           min={1}
           step={1}
           placeholder="50"
-          className="w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
+          aria-invalid={!!fieldErrors.capacidad_max}
+          aria-describedby={`${ids.capacidad}-msg`}
+          className="w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-300"
           required
         />
       </Field>
 
       <Field
+        id={ids.consumo}
         label="Consumo de combustible (L/Km)"
         hint="Litros consumidos por cada kilómetro recorrido. Ej: 0.45"
         error={fieldErrors.consumo_l_km}
       >
         <input
+          id={ids.consumo}
           type="number"
           value={consumo}
           onChange={(e) => setConsumo(e.target.value)}
           min={0.001}
           step={0.001}
           placeholder="0.450"
-          className="w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
+          aria-invalid={!!fieldErrors.consumo_l_km}
+          aria-describedby={`${ids.consumo}-msg`}
+          className="w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-300"
           required
         />
       </Field>
@@ -144,25 +162,29 @@ export function TruckForm() {
 }
 
 function Field({
+  id,
   label,
   hint,
   error,
   children,
 }: {
+  id: string;
   label: string;
   hint?: string;
   error?: string;
   children: React.ReactNode;
 }) {
   return (
-    <label className="block">
-      <span className="text-sm font-medium text-slate-700">{label}</span>
+    <div>
+      <label htmlFor={id} className="block text-sm font-medium text-slate-700">
+        {label}
+      </label>
       <div className="mt-1">{children}</div>
       {error ? (
-        <p className="mt-1 text-xs text-red-600">{error}</p>
+        <p id={`${id}-msg`} role="alert" className="mt-1 text-xs text-red-600">{error}</p>
       ) : hint ? (
-        <p className="mt-1 text-xs text-slate-500">{hint}</p>
+        <p id={`${id}-msg`} className="mt-1 text-xs text-slate-500">{hint}</p>
       ) : null}
-    </label>
+    </div>
   );
 }

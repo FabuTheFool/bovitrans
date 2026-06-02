@@ -36,6 +36,10 @@ DO $$ BEGIN
     CREATE TYPE asignacion_estado AS ENUM ('activa', 'liberada', 'completada');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
+DO $$ BEGIN
+    CREATE TYPE user_rol AS ENUM ('operador', 'admin');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
 -- ─── Función utilitaria: updated_at automático ─────────────────────────────
 CREATE OR REPLACE FUNCTION set_updated_at()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
@@ -44,6 +48,34 @@ BEGIN
     RETURN NEW;
 END;
 $$;
+
+-- ============================================================================
+-- TABLA: users (Fase 5 — autenticación)
+-- ============================================================================
+-- Auth con JWT firmado del lado servidor, cookie httpOnly. Password hasheado
+-- con bcrypt (cost 12). Email normalizado en lowercase para unicidad real.
+-- Roles: 'operador' (uso diario) y 'admin' (parametrización del sistema).
+
+CREATE TABLE IF NOT EXISTS users (
+    id              BIGSERIAL PRIMARY KEY,
+    email           TEXT NOT NULL,
+    email_normalizado TEXT GENERATED ALWAYS AS (LOWER(TRIM(email))) STORED,
+    password_hash   TEXT NOT NULL,
+    nombre          TEXT NOT NULL,
+    rol             user_rol NOT NULL DEFAULT 'operador',
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT users_email_no_vacio CHECK (LENGTH(TRIM(email)) > 0),
+    CONSTRAINT users_nombre_no_vacio CHECK (LENGTH(TRIM(nombre)) > 0)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS users_email_uniq ON users (email_normalizado);
+
+DROP TRIGGER IF EXISTS users_set_updated_at ON users;
+CREATE TRIGGER users_set_updated_at
+    BEFORE UPDATE ON users
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- ============================================================================
 -- TABLA: camiones
@@ -267,27 +299,58 @@ CREATE TABLE IF NOT EXISTS parametros_historial (
 CREATE INDEX IF NOT EXISTS parametros_historial_clave_changed_at_idx
     ON parametros_historial (clave, changed_at DESC);
 
--- Trigger: cada UPDATE a parametros graba una fila en parametros_historial.
+-- Trigger: audit log completo de INSERT / UPDATE / DELETE.
+-- TG_OP distingue la operación:
+--   INSERT → valor_anterior=NULL, valor_nuevo=NEW.valor
+--   UPDATE → valor_anterior=OLD.valor, valor_nuevo=NEW.valor (solo si cambió)
+--   DELETE → valor_anterior=OLD.valor, valor_nuevo=NULL (no permitido por schema,
+--            registramos como JSONB 'null' literal)
 CREATE OR REPLACE FUNCTION log_parametro_change()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
-    IF NEW.valor IS DISTINCT FROM OLD.valor THEN
+    IF TG_OP = 'INSERT' THEN
         INSERT INTO parametros_historial (clave, valor_anterior, valor_nuevo)
-        VALUES (NEW.clave, OLD.valor, NEW.valor);
+        VALUES (NEW.clave, NULL, NEW.valor);
+        RETURN NEW;
+    ELSIF TG_OP = 'UPDATE' THEN
+        IF NEW.valor IS DISTINCT FROM OLD.valor THEN
+            INSERT INTO parametros_historial (clave, valor_anterior, valor_nuevo)
+            VALUES (NEW.clave, OLD.valor, NEW.valor);
+        END IF;
+        RETURN NEW;
+    ELSIF TG_OP = 'DELETE' THEN
+        INSERT INTO parametros_historial (clave, valor_anterior, valor_nuevo)
+        VALUES (OLD.clave, OLD.valor, 'null'::jsonb);
+        RETURN OLD;
     END IF;
-    RETURN NEW;
+    RETURN NULL;
 END;
 $$;
 
 DROP TRIGGER IF EXISTS parametros_audit ON parametros;
 CREATE TRIGGER parametros_audit
-    AFTER UPDATE ON parametros
+    AFTER INSERT OR UPDATE OR DELETE ON parametros
     FOR EACH ROW EXECUTE FUNCTION log_parametro_change();
 
 -- ============================================================================
 -- DATOS SEMILLA
 -- ============================================================================
 -- Patrón: ON CONFLICT DO NOTHING para que un re-run del init.sql no duplique.
+
+-- ── Usuarios iniciales (Fase 5) ───────────────────────────────────────────
+-- Bcrypt cost 12. Las claves planas están documentadas en .env.example y
+-- DOCUMENTACION.md §6 (sólo para desarrollo / demo). En cualquier deploy
+-- real, re-generar y rotar.
+--   admin@bovitrans.local    / BoviTrans2026!
+--   operador@bovitrans.local / Operador2026!
+INSERT INTO users (email, password_hash, nombre, rol) VALUES
+    ('admin@bovitrans.local',
+     '$2a$12$2U83HZiKX1k0jGOfDw7fU.EuJ25QKkQuHrR01LFUqq22TY.eW8mMe',
+     'Admin BoviTrans', 'admin'),
+    ('operador@bovitrans.local',
+     '$2a$12$DZ0N9xb01BTLmVotYyGkjuuSfsAytVS.a5NC6ALNJqwi.KzdjB5vO',
+     'Operador Demo', 'operador')
+ON CONFLICT (email_normalizado) DO NOTHING;
 
 -- ── Parámetro inicial: precio del combustible ─────────────────────────────
 -- Moneda: PYG (guaraní paraguayo). Precio realista de gasoil 2025 ≈ 8000 PYG/L.

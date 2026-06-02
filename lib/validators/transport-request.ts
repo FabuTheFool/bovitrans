@@ -58,6 +58,17 @@ export const SolicitudCancelSchema = z.object({
   motivo: z.string().trim().max(500).optional(),
 });
 
+/**
+ * DTO de solicitud para el dashboard.
+ *
+ * Espeja la forma plana que devuelve la vista `v_solicitudes_dashboard`:
+ * todos los campos `asignacion_*` y `camion_*` son nullable y arrancan en
+ * NULL cuando la solicitud no tiene asignación activa.
+ *
+ * Decisión: schema PLANO en lugar de objeto anidado porque (a) matchea la
+ * SQL real (LEFT JOIN denormalizado), (b) evita re-mapping innecesario en
+ * cada handler, y (c) Zod puede validar el output real sin transformaciones.
+ */
 export const SolicitudDTOSchema = z.object({
   id: z.number().int().positive(),
   solicitante_nombre: z.string(),
@@ -73,15 +84,13 @@ export const SolicitudDTOSchema = z.object({
   tiempo_estimado_min: z.number().int().nullable(),
   estado: SolicitudEstadoSchema,
   created_at: z.string(),
-  asignacion: z
-    .object({
-      id: z.number().int().positive(),
-      camion_id: z.number().int().positive(),
-      camion_patente: z.string(),
-      camion_capacidad: z.number().int(),
-      costo_combustible: z.number(),
-      con_sobrecapacidad: z.boolean(),
-    })
-    .nullable(),
+
+  // Campos de la asignación activa (planos, todos coherentemente null si no hay).
+  asignacion_id: z.number().int().positive().nullable(),
+  costo_combustible: z.number().nullable(),
+  con_sobrecapacidad: z.boolean().nullable(),
+  camion_id: z.number().int().positive().nullable(),
+  camion_patente: z.string().nullable(),
+  camion_capacidad: z.number().int().nullable(),
 });
 export type SolicitudDTO = z.infer<typeof SolicitudDTOSchema>;

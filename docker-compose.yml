@@ -56,6 +56,10 @@ services:
       NOMINATIM_BASE_URL: ${NOMINATIM_BASE_URL:-https://nominatim.openstreetmap.org}
       NEXT_PUBLIC_TILES_URL: ${NEXT_PUBLIC_TILES_URL:-https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png}
       NEXT_PUBLIC_DEFAULT_CURRENCY: ${NEXT_PUBLIC_DEFAULT_CURRENCY:-PYG}
+      # JWT_SECRET es obligatoria. Sin default. Si falta, compose falla.
+      # Generar con: openssl rand -base64 48
+      JWT_SECRET: "${JWT_SECRET:?JWT_SECRET no definido en .env (ver .env.example)}"
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
     ports:
       - "${APP_PORT:-3000}:3000"
 

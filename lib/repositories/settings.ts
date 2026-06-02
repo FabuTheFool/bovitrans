@@ -1,5 +1,5 @@
 import type { PoolClient } from 'pg';
-import { query } from '@/lib/db/client';
+import { query, withTransaction } from '@/lib/db/client';
 import { FuelPriceSchema, type FuelPrice } from '@/lib/validators/settings';
 
 const FUEL_PRICE_KEY = 'fuel_price_per_liter';
@@ -15,14 +15,27 @@ export async function getFuelPrice(client?: PoolClient): Promise<FuelPrice> {
   return FuelPriceSchema.parse(result.rows[0].valor);
 }
 
+/**
+ * Atómico: SELECT FOR UPDATE + UPDATE en la misma transacción para evitar
+ * lost-update entre admins concurrentes que pisarían el currency stale.
+ */
 export async function setFuelPrice(newAmount: number): Promise<FuelPrice> {
-  const current = await getFuelPrice();
-  const newValue: FuelPrice = { amount: newAmount, currency: current.currency };
-  await query(
-    `UPDATE parametros SET valor = $1 WHERE clave = $2`,
-    [JSON.stringify(newValue), FUEL_PRICE_KEY],
-  );
-  return newValue;
+  return withTransaction(async (client) => {
+    const cur = await client.query<{ valor: unknown }>(
+      `SELECT valor FROM parametros WHERE clave = $1 FOR UPDATE`,
+      [FUEL_PRICE_KEY],
+    );
+    if (cur.rowCount === 0) {
+      throw new Error('Parámetro fuel_price_per_liter no encontrado.');
+    }
+    const current = FuelPriceSchema.parse(cur.rows[0].valor);
+    const newValue: FuelPrice = { amount: newAmount, currency: current.currency };
+    await client.query(
+      `UPDATE parametros SET valor = $1 WHERE clave = $2`,
+      [JSON.stringify(newValue), FUEL_PRICE_KEY],
+    );
+    return newValue;
+  });
 }
 
 export interface FuelPriceHistoryEntry {

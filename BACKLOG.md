@@ -40,7 +40,6 @@
 
 **Fuera de alcance del MVP (out-of-scope):**
 
-- Autenticación multi-usuario y gestión de roles (todo el MVP corre con un único operador).
 - Notificaciones push o email al cliente.
 - Facturación, pagos o integración contable.
 - App móvil para el chofer.
@@ -63,9 +62,9 @@
 | **Operador Logístico** | Usuario primario del MVP. Gestiona solicitudes, flota y asignaciones desde el dashboard. | Todas las funcionalidades del MVP. |
 | **Cliente Solicitante** | Persona física o jurídica que pide un traslado de ganado. _En el MVP no tiene acceso a la plataforma; su información se ingresa por el operador._ | Indirecta (a través del operador). |
 | **Chofer** | Persona que conduce el camión asignado. _Fuera del alcance del MVP._ | N/A en este MVP. |
-| **Administrador del Sistema** | Rol técnico para parametrización global. En el MVP se colapsa con el rol de Operador. | Configuración de precio de combustible. |
+| **Administrador del Sistema** | Rol con privilegios elevados — gestiona parametrización global (precio del combustible, futuros parámetros). | Configuración del sistema (US-21). |
 
-> **Nota arquitectónica:** El MVP no implementa autenticación. Cuando se introduzca, los roles _Operador_ y _Administrador_ se separarán y _Cliente Solicitante_ obtendrá una vista de seguimiento de sus solicitudes.
+> **Nota arquitectónica:** El MVP implementa autenticación con JWT firmado del lado servidor (HS256) en cookie httpOnly. Roles `operador` y `admin` con RBAC sobre los endpoints que tocan parametrización (épica E07).
 
 ---
 
@@ -172,6 +171,16 @@
 **Objetivo:** Garantizar que el sistema arranca con un único comando, persiste datos correctamente y tiene un modelo de datos sólido.
 
 **No tiene US tradicionales** — se descompone directamente en tareas técnicas (ver sección 8, sprint 0).
+
+---
+
+### E07 — Autenticación y Control de Acceso
+
+**Objetivo de negocio:** Garantizar que sólo personal autorizado accede a la plataforma y que las acciones sensibles (modificar parámetros del sistema) están restringidas a roles administrativos.
+
+**KPI:** 100% de los endpoints sensibles requieren sesión válida. 0 endpoints de mutación accesibles sin auth.
+
+**US incluidas:** US-19, US-20, US-21.
 
 ---
 
@@ -929,6 +938,122 @@ Y los registros se ordenan del más reciente al más antiguo
 
 - [ ] **[API]** `GET /api/settings/fuel-price/history`. _(US-18)_
 - [ ] **[FE]** Tabla colapsable "Historial" en `app/(dashboard)/settings/page.tsx`. _(US-18)_
+
+---
+
+### Épica E07 — Autenticación y Control de Acceso
+
+---
+
+#### US-19 — Ingresar al sistema con credenciales
+
+> Como **Operador / Admin**, quiero **autenticarme con email y contraseña**, para **acceder al panel y operar con mi rol asignado**.
+
+**Épica:** E07 · **Prioridad:** Must · **Estimación:** 5 pts
+
+**Criterios de Aceptación:**
+
+**Escenario 1: Login exitoso**
+```gherkin
+Dado que existe el usuario "admin@bovitrans.local" con contraseña "BoviTrans2026!"
+Cuando el usuario ingresa esas credenciales y confirma
+Entonces el sistema responde HTTP 200 con los datos públicos del usuario
+Y setea la cookie httpOnly "bvt_session" con un JWT firmado HS256
+Y la cookie tiene SameSite=Lax y secure=true en producción
+Y el usuario es redirigido al panel principal
+```
+
+**Escenario 2: Credenciales inválidas**
+```gherkin
+Dado que el usuario ingresa una contraseña incorrecta
+Cuando intenta iniciar sesión
+Entonces el sistema responde HTTP 401
+Y devuelve el mensaje "Credenciales inválidas." (igual que si el usuario no existiera, para evitar user enumeration)
+```
+
+**Escenario 3: Acceso sin sesión**
+```gherkin
+Dado que no hay cookie de sesión válida
+Cuando se intenta acceder a "/" o a "/api/trucks"
+Entonces para rutas UI se redirige a /login?next=...
+Y para rutas API la respuesta es HTTP 401 con `{ "error": { "code": "UNAUTHORIZED" } }`
+```
+
+**Tareas técnicas:**
+
+- [ ] **[DB]** Tabla `users` con `email`, `email_normalizado` (GENERATED), `password_hash`, `nombre`, `rol` (enum operador|admin). _(US-19)_
+- [ ] **[DB]** Seed admin + operador con hashes bcrypt cost 12. _(US-19)_
+- [ ] **[API]** `POST /api/auth/login` con Zod + bcrypt + emisión JWT. _(US-19)_
+- [ ] **[API]** `middleware.ts` que protege rutas y redirige a /login. _(US-19)_
+- [ ] **[FE]** Página `/login` con form y manejo de `?next=...`. _(US-19)_
+- [ ] **[FE]** Whitelist anti open-redirect en `?next=` (solo paths relativos). _(US-19)_
+
+---
+
+#### US-20 — Cerrar sesión
+
+> Como **usuario autenticado**, quiero **cerrar sesión desde el sidebar**, para **garantizar que nadie acceda a la plataforma con mi sesión cuando dejo el equipo**.
+
+**Épica:** E07 · **Prioridad:** Must · **Estimación:** 2 pts
+
+**Criterios de Aceptación:**
+
+**Escenario 1: Logout limpia la cookie**
+```gherkin
+Dado que el usuario tiene sesión activa
+Cuando hace click en "Cerrar sesión"
+Entonces el sistema responde HTTP 204
+Y la cookie "bvt_session" se invalida
+Y el usuario es redirigido a /login
+```
+
+**Tareas técnicas:**
+
+- [ ] **[API]** `POST /api/auth/logout` que borra la cookie. _(US-20)_
+- [ ] **[FE]** Botón "Cerrar sesión" en el bloque de usuario del sidebar. _(US-20)_
+
+---
+
+#### US-21 — Restringir modificación de parámetros a admin (RBAC)
+
+> Como **Administrador del Sistema**, quiero **que sólo los usuarios con rol admin puedan modificar el precio del combustible**, para **evitar que cualquier operador altere parámetros financieros críticos**.
+
+**Épica:** E07 · **Prioridad:** Must · **Estimación:** 3 pts
+
+**Criterios de Aceptación:**
+
+**Escenario 1: Admin actualiza precio**
+```gherkin
+Dado que el usuario autenticado tiene rol "admin"
+Cuando hace PUT a /api/settings/fuel-price con un nuevo valor
+Entonces el sistema responde HTTP 200 y persiste el cambio
+Y el historial registra la modificación
+```
+
+**Escenario 2: Operador intenta actualizar precio**
+```gherkin
+Dado que el usuario autenticado tiene rol "operador"
+Cuando hace PUT a /api/settings/fuel-price
+Entonces el sistema responde HTTP 403 (FORBIDDEN)
+Y devuelve el mensaje "Esta acción requiere rol 'admin'. Tu rol actual: 'operador'."
+```
+
+**Escenario 3: UI esconde controles según rol**
+```gherkin
+Dado que el usuario operador entra a /settings
+Cuando se renderiza la página
+Entonces ve el precio actual y el historial
+Pero NO ve el form de edición
+Y aparece un badge "solo lectura"
+Y el link "Configuración" del sidebar tampoco se renderiza para operadores
+```
+
+**Tareas técnicas:**
+
+- [ ] **[API]** Helper `requireRole(rol)` que lanza `forbidden()` si el rol no coincide. _(US-21)_
+- [ ] **[API]** Aplicar `requireRole('admin')` en `PUT /api/settings/fuel-price`. _(US-21)_
+- [ ] **[FE]** Settings page condicional según `user.rol`. _(US-21)_
+- [ ] **[FE]** Sidebar oculta link "Configuración" para no-admin. _(US-21)_
 
 ---
 

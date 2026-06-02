@@ -370,6 +370,55 @@ Implementado en [`lib/domain/patente.ts`](lib/domain/patente.ts) Y en la columna
 
 Cada asignación persiste 5 columnas snapshot (`cabezas_aplicadas`, `distancia_km_aplicada`, `consumo_aplicado`, `precio_litro_aplicado`, `costo_combustible`). El cambio posterior del precio del combustible o de los atributos del camión no afecta a asignaciones existentes.
 
+### 5.5 Autenticación y RBAC (E07)
+
+**Arquitectura de auth:**
+
+```
+[Cliente] ──POST /api/auth/login──▶ [Route Handler]
+                                          │
+                                          ▼
+                                 ┌── findUserByEmail()
+                                 ├── verifyPassword (bcrypt cost 12)
+                                 ├── issueSessionToken (jose, HS256, TTL 8h)
+                                 └── Set-Cookie: bvt_session (httpOnly, lax)
+                                          │
+                                          ▼
+[Cliente con cookie] ──cualquier request──▶ [middleware.ts]
+                                          │
+                              verifySessionToken(token)
+                                          │
+                            ┌─────────────┴─────────────┐
+                       válido                       inválido
+                            │                           │
+                       NextResponse.next()    UI: redirect /login?next=
+                                              API: 401 JSON
+```
+
+**Roles y RBAC:**
+
+| Rol | Capacidades |
+|---|---|
+| `operador` | Todo lo operativo: solicitudes, flota, asignaciones. Settings en sólo lectura. |
+| `admin` | Lo del operador + modificar parámetros del sistema (precio combustible). |
+
+**Endpoints públicos (no requieren sesión):**
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
+- `GET /api/auth/me`
+- `GET /api/healthz`
+
+**Endpoints admin-only:**
+- `PUT /api/settings/fuel-price` (US-21)
+
+**Decisiones de seguridad:**
+- **Cookie httpOnly + sameSite=lax**: no accesible desde JavaScript del cliente, mitiga XSS. `sameSite=lax` para mitigar CSRF en operaciones cross-origin.
+- **secure=true en producción**: la cookie solo viaja por HTTPS.
+- **bcrypt cost 12**: ~250ms por verificación, balance UX/seguridad.
+- **HS256 con secret >= 32 chars**: validado en runtime. Falla rápido si está mal configurado.
+- **Mensaje uniforme en login**: "Credenciales inválidas." sin distinguir entre user no existe vs password incorrecto, para evitar enumeration de usuarios.
+- **Anti open-redirect en `?next=`**: whitelist a paths relativos internos (`/`), descartando `//foo` y URLs absolutas.
+
 ---
 
 ## 6. Cómo correr el proyecto
@@ -398,26 +447,43 @@ La app queda en `http://localhost:3000`.
 
 La DB queda expuesta sólo localmente en `127.0.0.1:5432` (para debugging con un cliente psql/DBeaver — no expuesta al exterior).
 
-### 6.3 Verificación rápida
+### 6.3 Credenciales de demo
+
+El seed crea dos usuarios:
+
+| Email | Password | Rol |
+|---|---|---|
+| `admin@bovitrans.local` | `BoviTrans2026!` | admin |
+| `operador@bovitrans.local` | `Operador2026!` | operador |
+
+### 6.4 Verificación rápida
 
 ```bash
-# Health probe (debe responder 200 con db.ok=true)
+# Health probe (público, no requiere auth)
 curl http://localhost:3000/api/healthz
 
-# Datos seed cargados
-curl http://localhost:3000/api/trucks
-curl http://localhost:3000/api/transport-requests
-curl http://localhost:3000/api/settings/fuel-price
+# Login (guarda la cookie en jar.txt)
+curl -c jar.txt -X POST http://localhost:3000/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@bovitrans.local","password":"BoviTrans2026!"}'
+
+# Endpoints protegidos: enviar la cookie
+curl -b jar.txt http://localhost:3000/api/trucks
+curl -b jar.txt http://localhost:3000/api/transport-requests
+curl -b jar.txt http://localhost:3000/api/settings/fuel-price
+
+# Quién soy
+curl -b jar.txt http://localhost:3000/api/auth/me
 ```
 
-### 6.4 Limpieza
+### 6.5 Limpieza
 
 ```bash
 docker compose down       # detiene y borra contenedores, preserva volumen
 docker compose down -v    # también borra el volumen → próximo up corre init.sql desde cero
 ```
 
-### 6.5 Tests de dominio (fuera de Docker)
+### 6.6 Tests de dominio (fuera de Docker)
 
 ```bash
 npm install
@@ -441,6 +507,7 @@ Cubre `lib/domain/cost.ts` y `lib/domain/capacity.ts` con Vitest.
 | `NOMINATIM_BASE_URL` | `https://nominatim.openstreetmap.org` | Endpoint de geocoding. |
 | `NEXT_PUBLIC_TILES_URL` | tiles OSM | URL de tiles del mapa. Pública porque la usa el cliente. |
 | `NEXT_PUBLIC_DEFAULT_CURRENCY` | `PYG` | Moneda para formato monetario en UI. |
+| `JWT_SECRET` | `dev-only-...` (>= 32 chars) | Clave HS256 para firmar/verificar tokens. **Regenerar con `openssl rand -base64 48` en cualquier deploy.** |
 
 ---
 
@@ -514,6 +581,12 @@ Ejecutado con `docker compose up --build`:
 - **Contexto:** la imagen Docker debería ser pequeña y autocontenida.
 - **Decisión:** usar el `output: 'standalone'` de Next.js. La imagen runner sólo copia `.next/standalone`, `static/` y `public/`. No incluye `node_modules` full.
 - **Consecuencia:** imágenes más chicas y arranques más rápidos en runtime.
+
+### ADR-08 — Autenticación con `jose` (JWT) + cookie httpOnly en lugar de NextAuth
+
+- **Contexto:** la pauta no requería auth, pero se decidió añadir como feature extra. Las opciones eran (a) NextAuth (más features pero pesado y opinionado), (b) `jose` + cookie httpOnly manual, (c) `jsonwebtoken` clásico.
+- **Decisión:** opción (b). `jose` es Edge-compatible (corre en el middleware de Next), `jsonwebtoken` no. Cookie httpOnly + sameSite=lax para evitar exposición a XSS (vs localStorage). HS256 con secret simétrica suficiente para single-tenant.
+- **Consecuencia:** menos magia, control total del flujo, runtime Edge para el middleware. Si en el futuro se hace federated identity (OAuth, SAML) migrar a RS256 + provider externo. Refresh tokens fuera de scope del MVP: TTL de 8 horas y re-login.
 
 ### ADR-07 — Discovery con skill formal en `.claude/skills.json`
 
