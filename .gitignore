@@ -1,0 +1,56 @@
+# ─── Node / Next.js ─────────────────────────────────────────────────────
+node_modules/
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+next-env.d.ts
+
+# ─── Logs ───────────────────────────────────────────────────────────────
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# ─── Entorno ────────────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ─── Docker / Volúmenes locales ─────────────────────────────────────────
+postgres-data/
+pgdata/
+docker-data/
+
+# ─── IDE / SO ───────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ─── Tests / Coverage ───────────────────────────────────────────────────
+coverage/
+.nyc_output/
+
+# ─── Claude Code (mantener skills y CLAUDE.md, ignorar estado local) ───
+.claude/settings.local.json
+.claude/logs/
+.claude/cache/
+
+# ─── PDF de la pauta (no se versiona la prueba) ─────────────────────────
+*.pdf
+
+# ─── Artifacts de testing / curl (jamás versionar — pueden contener sesiones) ──
+cookies.txt
+jar*.txt
+r[0-9]*.json
+response.json
+response*.json
+assign_*.json
+.pr-body.md
