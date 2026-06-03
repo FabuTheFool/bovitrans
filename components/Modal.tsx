@@ -1,68 +1,25 @@
 'use client';
 
-import { useEffect, useId, useRef, useState } from 'react';
-import clsx from 'clsx';
-
-interface BaseModalProps {
-  open: boolean;
-  onClose: () => void;
-  title: string;
-  description?: string;
-  children?: React.ReactNode;
-}
+import { useEffect, useState } from 'react';
+import { AlertTriangle, Info } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
 
 /**
- * Modal accesible (role=dialog, aria-modal, focus trap mínimo).
- * Cierra con Escape, click en backdrop, o callback explícito.
+ * Modal accesible construido sobre Radix Dialog.
+ *
+ * API estable hacia atrás: `ConfirmModal` y `PromptModal` mantienen las mismas
+ * props que la versión anterior, así que los consumers no cambian.
  */
-function BaseModal({ open, onClose, title, description, children }: BaseModalProps) {
-  const ref = useRef<HTMLDivElement>(null);
-  const titleId = useId();
-  const descId = useId();
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    // Mover el foco al diálogo al abrir.
-    ref.current?.focus();
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
-
-  if (!open) return null;
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
-      onClick={onClose}
-    >
-      <div
-        ref={ref}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        aria-describedby={description ? descId : undefined}
-        tabIndex={-1}
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-xl bg-white shadow-xl outline-none"
-      >
-        <div className="border-b border-slate-200 px-5 py-4">
-          <h3 id={titleId} className="text-base font-semibold text-slate-900">
-            {title}
-          </h3>
-          {description ? (
-            <p id={descId} className="mt-1 text-sm text-slate-600">
-              {description}
-            </p>
-          ) : null}
-        </div>
-        <div className="px-5 py-4">{children}</div>
-      </div>
-    </div>
-  );
-}
 
 interface ConfirmModalProps {
   open: boolean;
@@ -70,7 +27,6 @@ interface ConfirmModalProps {
   description?: string;
   confirmLabel?: string;
   cancelLabel?: string;
-  /** Visual + intent. `danger` cambia el color del botón a rojo. */
   variant?: 'default' | 'danger';
   onConfirm: () => void | Promise<void>;
   onClose: () => void;
@@ -99,33 +55,43 @@ export function ConfirmModal({
     }
   }
 
+  const Icon = variant === 'danger' ? AlertTriangle : Info;
+
   return (
-    <BaseModal open={open} onClose={busy ? () => {} : onClose} title={title} description={description}>
-      {children ? <div className="mb-4 text-sm text-slate-700">{children}</div> : null}
-      <div className="flex justify-end gap-2">
-        <button
-          type="button"
-          onClick={onClose}
-          disabled={busy}
-          className="rounded-md px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
-        >
-          {cancelLabel}
-        </button>
-        <button
-          type="button"
-          onClick={handleConfirm}
-          disabled={busy}
-          className={clsx(
-            'rounded-md px-4 py-2 text-sm font-medium text-white shadow-sm disabled:opacity-50',
-            variant === 'danger'
-              ? 'bg-red-600 hover:bg-red-700'
-              : 'bg-brand-600 hover:bg-brand-700',
-          )}
-        >
-          {busy ? 'Procesando…' : confirmLabel}
-        </button>
-      </div>
-    </BaseModal>
+    <Dialog open={open} onOpenChange={(o) => { if (!o && !busy) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <div className="flex items-start gap-3">
+            <div
+              className={cn(
+                'flex h-10 w-10 shrink-0 items-center justify-center rounded-full',
+                variant === 'danger' ? 'bg-destructive/10 text-destructive' : 'bg-primary/10 text-primary',
+              )}
+            >
+              <Icon className="h-5 w-5" aria-hidden />
+            </div>
+            <div className="space-y-1">
+              <DialogTitle>{title}</DialogTitle>
+              {description ? <DialogDescription>{description}</DialogDescription> : null}
+            </div>
+          </div>
+        </DialogHeader>
+        {children ? <div className="text-sm text-muted-foreground">{children}</div> : null}
+        <DialogFooter>
+          <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
+            {cancelLabel}
+          </Button>
+          <Button
+            type="button"
+            variant={variant === 'danger' ? 'destructive' : 'default'}
+            onClick={handleConfirm}
+            disabled={busy}
+          >
+            {busy ? 'Procesando…' : confirmLabel}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -138,7 +104,6 @@ interface PromptModalProps {
   confirmLabel?: string;
   cancelLabel?: string;
   variant?: 'default' | 'danger';
-  /** Recibe el texto ingresado (puede ser ''). */
   onConfirm: (value: string) => void | Promise<void>;
   onClose: () => void;
 }
@@ -157,7 +122,6 @@ export function PromptModal({
 }: PromptModalProps) {
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
-  const inputId = useId();
 
   useEffect(() => {
     if (open) setValue('');
@@ -173,43 +137,37 @@ export function PromptModal({
   }
 
   return (
-    <BaseModal open={open} onClose={busy ? () => {} : onClose} title={title} description={description}>
-      <div className="mb-4">
-        <label htmlFor={inputId} className="block text-sm font-medium text-slate-700">
-          {label}
-        </label>
-        <textarea
-          id={inputId}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder={placeholder}
-          rows={3}
-          className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-300"
-        />
-      </div>
-      <div className="flex justify-end gap-2">
-        <button
-          type="button"
-          onClick={onClose}
-          disabled={busy}
-          className="rounded-md px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
-        >
-          {cancelLabel}
-        </button>
-        <button
-          type="button"
-          onClick={handleConfirm}
-          disabled={busy}
-          className={clsx(
-            'rounded-md px-4 py-2 text-sm font-medium text-white shadow-sm disabled:opacity-50',
-            variant === 'danger'
-              ? 'bg-red-600 hover:bg-red-700'
-              : 'bg-brand-600 hover:bg-brand-700',
-          )}
-        >
-          {busy ? 'Procesando…' : confirmLabel}
-        </button>
-      </div>
-    </BaseModal>
+    <Dialog open={open} onOpenChange={(o) => { if (!o && !busy) onClose(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          {description ? <DialogDescription>{description}</DialogDescription> : null}
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label htmlFor="prompt-textarea">{label}</Label>
+          <textarea
+            id="prompt-textarea"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder={placeholder}
+            rows={3}
+            className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          />
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="ghost" onClick={onClose} disabled={busy}>
+            {cancelLabel}
+          </Button>
+          <Button
+            type="button"
+            variant={variant === 'danger' ? 'destructive' : 'default'}
+            onClick={handleConfirm}
+            disabled={busy}
+          >
+            {busy ? 'Procesando…' : confirmLabel}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

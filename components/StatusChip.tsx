@@ -1,33 +1,29 @@
-import clsx from 'clsx';
+import { Clock, CheckCircle2, Truck as TruckIcon, Route, Ban } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-const LABELS = {
-  pendiente:  'Pendiente',
-  asignada:   'Asignada',
-  en_curso:   'En curso',
-  completada: 'Completada',
-  cancelada:  'Cancelada',
+const META = {
+  pendiente:  { label: 'Pendiente',  Icon: Clock,         classes: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 ring-amber-500/20' },
+  asignada:   { label: 'Asignada',   Icon: TruckIcon,     classes: 'bg-primary/10 text-primary ring-primary/20' },
+  en_curso:   { label: 'En curso',   Icon: Route,         classes: 'bg-info/10 text-info ring-info/30' },
+  completada: { label: 'Completada', Icon: CheckCircle2,  classes: 'bg-success/10 text-success ring-success/20' },
+  cancelada:  { label: 'Cancelada',  Icon: Ban,           classes: 'bg-muted text-muted-foreground ring-border' },
 } as const;
 
-const STYLES = {
-  pendiente:  'bg-yellow-50  text-yellow-800  ring-yellow-200',
-  asignada:   'bg-blue-50    text-blue-800    ring-blue-200',
-  en_curso:   'bg-violet-50  text-violet-800  ring-violet-200',
-  completada: 'bg-green-50   text-green-800   ring-green-200',
-  cancelada:  'bg-slate-100  text-slate-700   ring-slate-200',
-} as const;
+export type SolicitudEstado = keyof typeof META;
 
-export type SolicitudEstado = keyof typeof LABELS;
-
-export function StatusChip({ status }: { status: SolicitudEstado }) {
+export function StatusChip({ status, className }: { status: SolicitudEstado; className?: string }) {
+  const m = META[status];
+  const Icon = m.Icon;
   return (
     <span
-      className={clsx(
+      className={cn(
         'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset',
-        STYLES[status],
+        m.classes,
+        className,
       )}
     >
-      <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
-      {LABELS[status]}
+      <Icon className="h-3 w-3" aria-hidden />
+      {m.label}
     </span>
   );
 }

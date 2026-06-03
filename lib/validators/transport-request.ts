@@ -59,6 +59,37 @@ export const SolicitudCancelSchema = z.object({
 });
 
 /**
+ * Schema de edición de solicitud. Todos los campos opcionales — sólo se
+ * actualizan los que vienen en el body. Si vienen origen o destino, deben
+ * venir AMBOS (no permitimos parcial geográfico para evitar inconsistencia).
+ */
+export const SolicitudPatchSchema = z
+  .object({
+    solicitante_nombre: z.string().trim().min(1).max(200).optional(),
+    solicitante_contacto: z.string().trim().max(100).nullable().optional(),
+    cabezas: z.number().int().min(1).max(10_000).optional(),
+    origen: PuntoGeograficoSchema.optional(),
+    destino: PuntoGeograficoSchema.optional(),
+  })
+  .refine(
+    (data) => {
+      // Si viene uno de origen/destino, el otro también debe venir.
+      const haveOrigen = data.origen != null;
+      const haveDestino = data.destino != null;
+      return haveOrigen === haveDestino;
+    },
+    { message: 'origen y destino deben venir ambos cuando se modifica la ruta.', path: ['origen'] },
+  )
+  .refine(
+    (data) =>
+      !data.origen ||
+      !data.destino ||
+      !(data.origen.lat === data.destino.lat && data.origen.lon === data.destino.lon),
+    { message: 'El origen y el destino no pueden coincidir.', path: ['destino'] },
+  );
+export type SolicitudPatch = z.infer<typeof SolicitudPatchSchema>;
+
+/**
  * DTO de solicitud para el dashboard.
  *
  * Espeja la forma plana que devuelve la vista `v_solicitudes_dashboard`:

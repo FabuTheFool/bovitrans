@@ -2,13 +2,18 @@
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import clsx from 'clsx';
+import { motion } from 'framer-motion';
+import { Check, Truck as TruckIcon, AlertTriangle, ChevronRight, Loader2, Coins, Droplet } from 'lucide-react';
+import { toast } from 'sonner';
 import { api, ApiClientError } from '@/lib/client/api-client';
 import { calcularCostoCombustible } from '@/lib/domain/cost';
 import { evaluarSobrecapacidad, sugerirCamionesAlternativos } from '@/lib/domain/capacity';
 import { CapacityAlert } from '@/components/CapacityAlert';
 import { ConfirmModal } from '@/components/Modal';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { formatCurrency } from '@/lib/client/format';
+import { cn } from '@/lib/utils';
 
 interface Camion {
   id: number;
@@ -35,12 +40,10 @@ export function AssignForm({
   const router = useRouter();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const selected = camiones.find((c) => c.id === selectedId) ?? null;
 
-  // Costo previsualizado (US-14).
   const costPreview = useMemo(() => {
     if (!selected) return null;
     try {
@@ -54,13 +57,11 @@ export function AssignForm({
     }
   }, [selected, distanciaKm, precioLitro]);
 
-  // Evaluación de capacidad (US-15).
   const capEval = useMemo(() => {
     if (!selected) return null;
     return evaluarSobrecapacidad(cabezas, selected.capacidad_max);
   }, [selected, cabezas]);
 
-  // Camiones alternativos con capacidad suficiente.
   const alternativas = useMemo(() => {
     if (!capEval?.excedida) return [];
     return sugerirCamionesAlternativos(
@@ -76,7 +77,6 @@ export function AssignForm({
 
   function onClickConfirmar() {
     if (!selected) return;
-    setError(null);
     if (capEval?.excedida) {
       setConfirmOpen(true);
     } else {
@@ -93,10 +93,11 @@ export function AssignForm({
         camion_id: selected.id,
         acepta_sobrecapacidad: capEval?.excedida ?? false,
       });
+      toast.success(`Camión ${selected.patente} asignado`);
       router.push(`/requests/${solicitudId}`);
       router.refresh();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Error inesperado.');
+      toast.error(err instanceof ApiClientError ? err.message : 'Error inesperado.');
     } finally {
       setSubmitting(false);
       setConfirmOpen(false);
@@ -104,17 +105,16 @@ export function AssignForm({
   }
 
   return (
-    <div className="space-y-5">
-      <p className="text-sm text-slate-600">
-        Precio actual del combustible: <strong>{formatCurrency(precioLitro, currency)} / L</strong>.
-        El costo se calcula como <code>distancia × consumo × precio</code> y se persiste como
-        snapshot al confirmar.
-      </p>
-
-      <div className="space-y-2">
-        <p className="text-sm font-medium text-slate-700">
-          Seleccioná un camión ({camiones.length} disponibles)
+    <div className="space-y-6">
+      <Card className="p-4">
+        <p className="text-sm text-muted-foreground">
+          Precio actual del combustible: <strong className="text-foreground">{formatCurrency(precioLitro, currency)} / L</strong>.
+          El costo se calcula como <code className="rounded bg-muted px-1 text-xs">distancia × consumo × precio</code> y se persiste como snapshot al confirmar.
         </p>
+      </Card>
+
+      <div className="space-y-3">
+        <p className="text-sm font-medium">Seleccioná un camión <span className="text-muted-foreground">({camiones.length} disponibles)</span></p>
         <div className="space-y-2">
           {camiones.map((c) => {
             const evalCap = evaluarSobrecapacidad(cabezas, c.capacidad_max);
@@ -125,122 +125,116 @@ export function AssignForm({
             }).costoTotal;
             const isSelected = selectedId === c.id;
             return (
-              <button
+              <motion.button
                 key={c.id}
                 type="button"
                 onClick={() => setSelectedId(c.id)}
-                className={clsx(
-                  'w-full rounded-lg border bg-white p-4 text-left shadow-sm transition',
+                whileHover={{ y: -1 }}
+                whileTap={{ scale: 0.99 }}
+                transition={{ duration: 0.15 }}
+                className={cn(
+                  'w-full rounded-xl border bg-card p-4 text-left shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   isSelected
-                    ? 'border-brand-600 ring-2 ring-brand-200'
-                    : 'border-slate-200 hover:border-brand-300',
+                    ? 'border-primary ring-2 ring-primary/30'
+                    : 'border-border hover:border-primary/40',
                 )}
               >
                 <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="font-mono text-base font-semibold text-slate-900">
-                      {c.patente}
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={cn(
+                        'flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
+                        isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+                      )}
+                    >
+                      {isSelected ? <Check className="h-5 w-5" /> : <TruckIcon className="h-5 w-5" />}
                     </div>
-                    <div className="mt-1 text-xs text-slate-600">
-                      Capacidad {c.capacidad_max} cabezas · Consumo {c.consumo_l_km} L/Km
+                    <div>
+                      <div className="font-mono text-base font-semibold">{c.patente}</div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        Capacidad {c.capacidad_max} cabezas · Consumo {c.consumo_l_km} L/Km
+                      </div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-lg font-semibold text-slate-900">
+                    <div className="text-lg font-semibold tracking-tight">
                       {formatCurrency(cost, currency)}
                     </div>
                     <div
-                      className={
-                        evalCap.excedida
-                          ? 'text-xs font-medium text-red-600'
-                          : 'text-xs text-slate-500'
-                      }
+                      className={cn(
+                        'mt-0.5 text-xs',
+                        evalCap.excedida ? 'font-medium text-destructive' : 'text-muted-foreground',
+                      )}
                     >
                       {evalCap.excedida
-                        ? `⚠ sobrecapacidad (${evalCap.viajesNecesarios} viajes)`
+                        ? `Sobrecapacidad (${evalCap.viajesNecesarios} viajes)`
                         : 'capacidad OK'}
                     </div>
                   </div>
                 </div>
-              </button>
+              </motion.button>
             );
           })}
         </div>
       </div>
 
       {selected && capEval && costPreview ? (
-        <section className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-          <h3 className="text-sm font-semibold text-slate-900">Previsualización</h3>
+        <motion.section
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2 }}
+          className="space-y-4 rounded-xl border border-border bg-muted/40 p-4"
+        >
+          <h3 className="text-sm font-semibold tracking-tight">Previsualización</h3>
           <div className="grid gap-3 sm:grid-cols-3">
-            <Mini label="Camión" value={selected.patente} mono />
-            <Mini
-              label="Costo combustible"
-              value={formatCurrency(costPreview.costoTotal, currency)}
-              big
-            />
-            <Mini
-              label="Litros consumidos"
-              value={`${costPreview.litrosConsumidos.toFixed(1)} L`}
-            />
+            <MiniStat icon={<TruckIcon className="h-3.5 w-3.5" />} label="Camión" value={selected.patente} mono />
+            <MiniStat icon={<Coins className="h-3.5 w-3.5" />} label="Costo combustible" value={formatCurrency(costPreview.costoTotal, currency)} big />
+            <MiniStat icon={<Droplet className="h-3.5 w-3.5" />} label="Litros consumidos" value={`${costPreview.litrosConsumidos.toFixed(1)} L`} />
           </div>
           <CapacityAlert cabezas={cabezas} capacidad={selected.capacidad_max} />
 
           {capEval.excedida && alternativas.length > 0 ? (
-            <div className="rounded-md border border-slate-200 bg-white p-3 text-sm">
-              <p className="font-medium text-slate-900">Camiones con capacidad suficiente:</p>
+            <Card className="p-3">
+              <p className="text-sm font-medium">Camiones con capacidad suficiente:</p>
               <ul className="mt-2 space-y-1">
                 {alternativas.map((a) => (
                   <li key={a.id}>
                     <button
                       type="button"
                       onClick={() => setSelectedId(a.id)}
-                      className="text-brand-700 hover:underline"
+                      className="inline-flex items-center gap-1 text-sm text-primary transition-colors hover:underline"
                     >
-                      {a.patente}
-                    </button>{' '}
-                    <span className="text-xs text-slate-500">
+                      <ChevronRight className="h-3 w-3" />
+                      <span className="font-mono font-medium">{a.patente}</span>
+                    </button>
+                    <span className="ml-1 text-xs text-muted-foreground">
                       — capacidad {a.capacidadMax} ({a.capacidadMax - cabezas} de sobra)
                     </span>
                   </li>
                 ))}
               </ul>
-            </div>
+            </Card>
           ) : null}
-        </section>
-      ) : null}
-
-      {error ? (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          {error}
-        </div>
+        </motion.section>
       ) : null}
 
       <div className="flex justify-end gap-2">
-        <button
-          type="button"
-          onClick={() => router.back()}
-          className="rounded-md px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-        >
+        <Button type="button" variant="ghost" onClick={() => router.back()}>
           Cancelar
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
           onClick={onClickConfirmar}
           disabled={submitting || !selected}
-          className={clsx(
-            'rounded-md px-4 py-2 text-sm font-medium text-white shadow-sm transition',
-            capEval?.excedida
-              ? 'bg-red-600 hover:bg-red-700'
-              : 'bg-brand-600 hover:bg-brand-700',
-            'disabled:cursor-not-allowed disabled:opacity-60',
-          )}
+          variant={capEval?.excedida ? 'destructive' : 'default'}
         >
+          {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : capEval?.excedida ? <AlertTriangle className="h-4 w-4" /> : <Check className="h-4 w-4" />}
           {submitting
             ? 'Asignando…'
             : capEval?.excedida
               ? 'Asignar con sobrecapacidad'
               : 'Confirmar asignación'}
-        </button>
+        </Button>
       </div>
 
       <ConfirmModal
@@ -261,7 +255,7 @@ export function AssignForm({
           <ul className="list-disc space-y-1 pl-5 text-xs">
             <li>Excedente: <strong>{capEval.excedente} cabezas</strong></li>
             <li>Viajes necesarios (si se respeta capacidad): <strong>{capEval.viajesNecesarios}</strong></li>
-            <li>La asignación quedará con <code>con_sobrecapacidad=true</code> en el registro.</li>
+            <li>La asignación quedará con <code className="rounded bg-muted px-1">con_sobrecapacidad=true</code>.</li>
           </ul>
         ) : null}
       </ConfirmModal>
@@ -269,29 +263,28 @@ export function AssignForm({
   );
 }
 
-function Mini({
+function MiniStat({
+  icon,
   label,
   value,
   mono,
   big,
 }: {
+  icon?: React.ReactNode;
   label: string;
   value: string;
   mono?: boolean;
   big?: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-3">
-      <div className="text-xs text-slate-500">{label}</div>
-      <div
-        className={clsx(
-          'mt-1 font-semibold text-slate-900',
-          mono && 'font-mono',
-          big ? 'text-xl' : 'text-base',
-        )}
-      >
+    <Card className="p-3">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        {icon}
+        <span>{label}</span>
+      </div>
+      <div className={cn('mt-1 font-semibold', mono && 'font-mono', big ? 'text-xl tracking-tight' : 'text-base')}>
         {value}
       </div>
-    </div>
+    </Card>
   );
 }

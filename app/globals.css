@@ -2,14 +2,210 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: light;
+/* ─────────────────────────────────────────────────────────────────────────
+   Design tokens BoviTrans
+   - Light: blanco tintado de warm-violet muy sutil (no white puro).
+   - Dark: zinc azulado profundo con hint de violeta (no black puro).
+   - Primary: violeta más suave que el del logo, para no fatigar.
+   - Accent: teal del toro, usado activamente en interacciones.
+   ───────────────────────────────────────────────────────────────────────── */
+
+@layer base {
+  :root {
+    /* Background con un toque de violeta muy sutil para evitar "blanco médico". */
+    --background: 270 30% 99%;
+    --foreground: 260 15% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 260 15% 12%;
+    --card-border: 260 25% 92%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 260 15% 12%;
+
+    --muted: 260 20% 95%;
+    --muted-foreground: 260 8% 42%;
+    --border: 260 20% 90%;
+    --input: 260 20% 88%;
+
+    /* Primary — violeta del logo pero más cálido y desaturado.
+       Antes: hsl(261 49% 44%) muy saturado.
+       Ahora: hsl(261 38% 52%) — elegante y respira mejor.        */
+    --primary: 261 38% 52%;
+    --primary-foreground: 0 0% 100%;
+    --primary-soft: 261 60% 96%;     /* fondo suave para chips/cards */
+    --ring: 261 50% 60%;
+
+    --secondary: 260 20% 96%;
+    --secondary-foreground: 260 15% 18%;
+
+    /* Accent teal (del toro) — usar más como complemento */
+    --accent: 173 65% 42%;
+    --accent-foreground: 0 0% 100%;
+    --accent-soft: 173 70% 95%;
+
+    /* Estados semánticos con saturación viva */
+    --destructive: 0 75% 56%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-soft: 0 85% 96%;
+
+    --success: 152 60% 42%;
+    --success-foreground: 0 0% 100%;
+    --success-soft: 152 70% 95%;
+
+    --warning: 32 95% 50%;
+    --warning-foreground: 0 0% 100%;
+    --warning-soft: 32 100% 95%;
+
+    --info: 210 85% 55%;
+    --info-foreground: 0 0% 100%;
+    --info-soft: 210 90% 96%;
+
+    --radius: 0.75rem;
+    color-scheme: light;
+  }
+
+  .dark {
+    /* Dark con tinte violeta-azulado, NO black neutro */
+    --background: 260 25% 7%;
+    --foreground: 260 10% 96%;
+
+    --card: 260 22% 11%;
+    --card-foreground: 260 10% 96%;
+    --card-border: 260 15% 18%;
+
+    --popover: 260 22% 11%;
+    --popover-foreground: 260 10% 96%;
+
+    --muted: 260 15% 17%;
+    --muted-foreground: 260 8% 65%;
+    --border: 260 15% 22%;
+    --input: 260 15% 22%;
+
+    /* Primary más luminoso en dark para contraste */
+    --primary: 261 70% 70%;
+    --primary-foreground: 260 25% 7%;
+    --primary-soft: 261 30% 18%;
+    --ring: 261 70% 70%;
+
+    --secondary: 260 15% 17%;
+    --secondary-foreground: 260 10% 96%;
+
+    --accent: 173 75% 55%;
+    --accent-foreground: 260 25% 7%;
+    --accent-soft: 173 50% 16%;
+
+    --destructive: 0 70% 58%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-soft: 0 50% 18%;
+
+    --success: 152 55% 48%;
+    --success-foreground: 260 25% 7%;
+    --success-soft: 152 40% 16%;
+
+    --warning: 32 90% 58%;
+    --warning-foreground: 260 25% 7%;
+    --warning-soft: 32 50% 18%;
+
+    --info: 210 80% 65%;
+    --info-foreground: 260 25% 7%;
+    --info-soft: 210 50% 18%;
+
+    color-scheme: dark;
+  }
+
+  html, body { height: 100%; }
+
+  body {
+    @apply text-foreground antialiased relative min-h-screen;
+    background-color: hsl(var(--background));
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+    isolation: isolate;
+  }
+
+  /* Aurora — orbes de color desenfocados fijos al viewport. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(48rem 32rem at 10% -5%,  hsl(var(--primary) / 0.42), transparent 70%),
+      radial-gradient(40rem 28rem at 92% 8%,   hsl(var(--accent)  / 0.38), transparent 70%),
+      radial-gradient(38rem 28rem at 78% 102%, hsl(var(--primary) / 0.34), transparent 70%),
+      radial-gradient(44rem 32rem at 5% 98%,   hsl(var(--accent)  / 0.30), transparent 70%);
+    filter: blur(70px) saturate(140%);
+  }
+
+  .dark body::before {
+    background:
+      radial-gradient(48rem 32rem at 12% -5%,  hsl(var(--primary) / 0.35), transparent 70%),
+      radial-gradient(40rem 28rem at 88% 10%,  hsl(var(--accent)  / 0.28), transparent 70%),
+      radial-gradient(38rem 28rem at 75% 100%, hsl(var(--primary) / 0.28), transparent 70%),
+      radial-gradient(42rem 30rem at 8% 95%,   hsl(var(--accent)  / 0.20), transparent 70%);
+    filter: blur(70px) saturate(115%);
+  }
+
+  ::selection {
+    @apply bg-primary/25 text-foreground;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { @apply bg-transparent; }
+  ::-webkit-scrollbar-thumb { @apply rounded-full bg-muted-foreground/20 hover:bg-muted-foreground/40 transition-colors; }
 }
 
-html, body {
-  height: 100%;
-}
-
-body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+@layer utilities {
+  /* Gradiente sutil del brand para hero / acentos */
+  .bg-brand-gradient {
+    background-image: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%);
+  }
+  .text-brand-gradient {
+    background-image: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  /* Glow muy sutil para tarjetas seleccionadas */
+  .glow-primary {
+    box-shadow: 0 0 0 1px hsl(var(--primary)), 0 6px 24px -8px hsl(var(--primary) / 0.4);
+  }
+  /* Card con tinte sutil del brand (no blanco puro) */
+  .surface-tinted {
+    background-color: hsl(var(--card));
+    background-image: linear-gradient(180deg, hsl(var(--primary) / 0.02), hsl(var(--accent) / 0.02));
+  }
+  /* Glass — superficie semitransparente con blur, sobre el aurora.
+     En light suma un tinte muy sutil del brand para no quedar plana sobre fondo. */
+  .glass {
+    background-color: hsl(var(--card) / 0.55);
+    background-image: linear-gradient(180deg, hsl(var(--primary) / 0.04), hsl(var(--accent) / 0.03));
+    backdrop-filter: blur(16px) saturate(160%);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    border: 1px solid hsl(var(--card-border) / 0.7);
+    box-shadow: 0 1px 0 hsl(var(--primary) / 0.04), 0 8px 24px -12px hsl(var(--primary) / 0.12);
+  }
+  .glass-strong {
+    background-color: hsl(var(--card) / 0.72);
+    background-image: linear-gradient(180deg, hsl(var(--primary) / 0.06), hsl(var(--accent) / 0.04));
+    backdrop-filter: blur(20px) saturate(170%);
+    -webkit-backdrop-filter: blur(20px) saturate(170%);
+    border: 1px solid hsl(var(--card-border));
+    box-shadow: 0 1px 0 hsl(var(--primary) / 0.05), 0 10px 32px -16px hsl(var(--primary) / 0.15);
+  }
+  .dark .glass {
+    background-color: hsl(var(--card) / 0.55);
+    background-image: none;
+    box-shadow: none;
+  }
+  .dark .glass-strong {
+    background-color: hsl(var(--card) / 0.75);
+    background-image: none;
+    box-shadow: none;
+  }
 }

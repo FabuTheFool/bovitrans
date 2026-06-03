@@ -1,6 +1,9 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import { ArrowLeft, Lock, Truck, Route, Fuel, Coins, AlertTriangle } from 'lucide-react';
 import { query } from '@/lib/db/client';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { formatCurrency, formatDateTime, formatKm } from '@/lib/client/format';
 import { TruckActions } from './TruckActions';
 
@@ -76,99 +79,105 @@ export default async function TruckDetailPage({ params }: { params: { id: string
   );
   const agregados = agregadosRes.rows[0];
 
+  const activeCount = historicoRes.rows.filter((r) => r.estado === 'activa').length;
+
   return (
-    <div className="space-y-6">
-      <div>
-        <Link href="/fleet" className="text-sm text-brand-700 hover:underline">
-          ← Volver a flota
-        </Link>
-        <div className="mt-2 flex items-start justify-between gap-4">
-          <div>
-            <h1 className="font-mono text-3xl font-semibold text-slate-900">
-              {camion.patente}
-            </h1>
-            <p className="mt-1 text-sm text-slate-600">
-              Registrado el {formatDateTime(camion.created_at)}
-            </p>
+    <div className="space-y-6 animate-fade-in">
+      <Link
+        href="/fleet"
+        className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Volver a flota
+      </Link>
+
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <h1 className="font-mono text-3xl font-semibold tracking-tight">{camion.patente}</h1>
+            <Badge variant={camion.estado === 'activo' ? 'success' : 'muted'}>{camion.estado}</Badge>
           </div>
-          <TruckActions
-            id={camion.id}
-            estado={camion.estado}
-            asignacionesActivas={historicoRes.rows.filter((r) => r.estado === 'activa').length}
-          />
+          <p className="text-sm text-muted-foreground">
+            Registrado el {formatDateTime(camion.created_at)}
+          </p>
         </div>
+        <TruckActions id={camion.id} estado={camion.estado} asignacionesActivas={activeCount} />
       </div>
 
+      {/* Atributos inmutables */}
       <section className="grid gap-4 sm:grid-cols-3">
-        <ImmutableField
-          label="Capacidad máxima"
-          value={`${camion.capacidad_max} cabezas`}
-        />
-        <ImmutableField
-          label="Consumo de combustible"
-          value={`${camion.consumo_l_km} L/Km`}
-        />
-        <ImmutableField
-          label="Estado"
-          value={camion.estado}
-          editable
-        />
+        <ImmutableField icon={<Truck className="h-4 w-4" />} label="Capacidad máxima" value={`${camion.capacidad_max} cabezas`} />
+        <ImmutableField icon={<Fuel className="h-4 w-4" />} label="Consumo de combustible" value={`${camion.consumo_l_km} L/Km`} />
+        <Card className="p-4">
+          <div className="text-xs text-muted-foreground">Estado</div>
+          <div className="mt-2 capitalize">
+            <Badge variant={camion.estado === 'activo' ? 'success' : 'muted'}>{camion.estado}</Badge>
+          </div>
+        </Card>
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-4">
-        <Stat label="Viajes totales" value={agregados.total_viajes.toString()} />
-        <Stat label="Km recorridos" value={formatKm(agregados.total_km)} />
-        <Stat label="Litros consumidos" value={`${agregados.total_litros.toFixed(1)} L`} />
-        <Stat label="Costo acumulado" value={formatCurrency(agregados.total_costo)} />
+      {/* Agregados */}
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Stat label="Viajes totales" value={agregados.total_viajes.toString()} icon={<Route className="h-4 w-4" />} />
+        <Stat label="Km recorridos" value={formatKm(agregados.total_km)} icon={<Route className="h-4 w-4" />} />
+        <Stat label="Litros consumidos" value={`${agregados.total_litros.toFixed(1)} L`} icon={<Fuel className="h-4 w-4" />} />
+        <Stat label="Costo acumulado" value={formatCurrency(agregados.total_costo)} icon={<Coins className="h-4 w-4" />} />
       </section>
 
       <section>
-        <h2 className="font-semibold text-slate-900">Histórico de asignaciones</h2>
+        <h2 className="mb-3 font-semibold tracking-tight">Histórico de asignaciones</h2>
         {historicoRes.rowCount === 0 ? (
-          <p className="mt-3 rounded-lg border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">
-            Este camión aún no tiene asignaciones.
-          </p>
+          <Card className="border-dashed p-8 text-center">
+            <p className="text-sm text-muted-foreground">Este camión aún no tiene asignaciones.</p>
+          </Card>
         ) : (
-          <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-600">
-                <tr>
-                  <th className="px-4 py-3">Solicitud</th>
-                  <th className="px-4 py-3">Cabezas</th>
-                  <th className="px-4 py-3">Distancia</th>
-                  <th className="px-4 py-3">Costo</th>
-                  <th className="px-4 py-3">Estado</th>
-                  <th className="px-4 py-3">Fecha</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {historicoRes.rows.map((a) => (
-                  <tr key={a.id}>
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/requests/${a.solicitud_id}`}
-                        className="text-brand-700 hover:underline"
-                      >
-                        #{a.solicitud_id} — {a.solicitante_nombre}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3">
-                      {a.cabezas_aplicadas}
-                      {a.con_sobrecapacidad ? (
-                        <span className="ml-2 text-xs text-red-600">⚠ sobrecapacidad</span>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-3">{formatKm(a.distancia_km_aplicada)}</td>
-                    <td className="px-4 py-3">{formatCurrency(a.costo_combustible)}</td>
-                    <td className="px-4 py-3 capitalize">{a.estado}</td>
-                    <td className="px-4 py-3 text-xs text-slate-500">
-                      {formatDateTime(a.created_at)}
-                    </td>
+          <Card className="overflow-hidden p-0">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-border text-sm">
+                <thead className="bg-muted/50 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <tr>
+                    <th className="px-4 py-3">Solicitud</th>
+                    <th className="px-4 py-3">Cabezas</th>
+                    <th className="px-4 py-3">Distancia</th>
+                    <th className="px-4 py-3">Costo</th>
+                    <th className="px-4 py-3">Estado</th>
+                    <th className="px-4 py-3">Fecha</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {historicoRes.rows.map((a) => (
+                    <tr key={a.id} className="transition-colors hover:bg-muted/30">
+                      <td className="px-4 py-3">
+                        <Link href={`/requests/${a.solicitud_id}`} className="text-primary hover:underline">
+                          #{a.solicitud_id} — {a.solicitante_nombre}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span>{a.cabezas_aplicadas}</span>
+                          {a.con_sobrecapacidad ? (
+                            <span title="Sobrecapacidad" className="text-destructive">
+                              <AlertTriangle className="h-3.5 w-3.5" />
+                            </span>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">{formatKm(a.distancia_km_aplicada)}</td>
+                      <td className="px-4 py-3 font-medium">{formatCurrency(a.costo_combustible)}</td>
+                      <td className="px-4 py-3 capitalize">
+                        <Badge variant={a.estado === 'completada' ? 'success' : a.estado === 'activa' ? 'accent' : 'muted'}>
+                          {a.estado}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">
+                        {formatDateTime(a.created_at)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
         )}
       </section>
     </div>
@@ -176,30 +185,34 @@ export default async function TruckDetailPage({ params }: { params: { id: string
 }
 
 function ImmutableField({
+  icon,
   label,
   value,
-  editable,
 }: {
+  icon: React.ReactNode;
   label: string;
   value: string;
-  editable?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-center gap-2 text-xs text-slate-500">
-        {!editable ? <span title="Campo inmutable" aria-hidden>🔒</span> : null}
+    <Card className="p-4">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Lock className="h-3 w-3" aria-label="Campo inmutable" />
+        <span>{icon}</span>
         <span>{label}</span>
       </div>
-      <div className="mt-1 text-lg font-semibold capitalize text-slate-900">{value}</div>
-    </div>
+      <div className="mt-1 text-lg font-semibold">{value}</div>
+    </Card>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className="mt-1 text-xl font-semibold text-slate-900">{value}</div>
-    </div>
+    <Card className="p-4">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        {icon}
+        <span>{label}</span>
+      </div>
+      <div className="mt-1 text-xl font-semibold tracking-tight">{value}</div>
+    </Card>
   );
 }

@@ -1,9 +1,13 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import { ArrowLeft, MapPin, Beef, Route, Clock, Coins, Truck as TruckIcon, AlertTriangle } from 'lucide-react';
 import { query } from '@/lib/db/client';
 import { RouteMap } from '@/components/map/RouteMap';
 import { StatusChip, type SolicitudEstado } from '@/components/StatusChip';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { formatCurrency, formatDateTime, formatKm, formatMinutes } from '@/lib/client/format';
+import { RecalculateRouteButton } from '@/components/RecalculateRouteButton';
 import { RequestActions } from './RequestActions';
 
 export const dynamic = 'force-dynamic';
@@ -51,68 +55,77 @@ export default async function RequestDetailPage({ params }: { params: { id: stri
   const s = result.rows[0];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <Link href="/" className="text-sm text-brand-700 hover:underline">
-          ← Volver al panel
-        </Link>
-        <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-semibold text-slate-900">
-                {s.solicitante_nombre}
-              </h1>
-              <StatusChip status={s.estado} />
-            </div>
-            <p className="mt-1 text-sm text-slate-600">
-              Solicitud #{s.id} · creada el {formatDateTime(s.created_at)}
-              {s.solicitante_contacto ? ` · ${s.solicitante_contacto}` : ''}
-            </p>
+    <div className="space-y-6 animate-fade-in">
+      <Link
+        href="/"
+        className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Volver al panel
+      </Link>
+
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
+              {s.solicitante_nombre}
+            </h1>
+            <StatusChip status={s.estado} />
           </div>
-          <RequestActions
-            id={s.id}
-            estado={s.estado}
-            asignacionId={s.asignacion_id}
-          />
+          <p className="text-sm text-muted-foreground">
+            Solicitud #{s.id} · creada el {formatDateTime(s.created_at)}
+            {s.solicitante_contacto ? ` · ${s.solicitante_contacto}` : ''}
+          </p>
         </div>
+        <RequestActions id={s.id} estado={s.estado} asignacionId={s.asignacion_id} />
       </div>
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Cabezas" value={s.cabezas.toString()} />
-        <Stat label="Distancia" value={formatKm(s.distancia_km)} />
-        <Stat label="Tiempo estimado" value={formatMinutes(s.tiempo_estimado_min)} />
+        <Stat icon={<Beef className="h-4 w-4" />} label="Cabezas" value={s.cabezas.toString()} />
         <Stat
-          label={s.asignacion_id ? 'Costo combustible (snapshot)' : 'Costo combustible'}
+          icon={<Route className="h-4 w-4" />}
+          label="Distancia"
+          value={formatKm(s.distancia_km)}
+          action={<RecalculateRouteButton id={s.id} />}
+        />
+        <Stat icon={<Clock className="h-4 w-4" />} label="Tiempo estimado" value={formatMinutes(s.tiempo_estimado_min)} />
+        <Stat
+          icon={<Coins className="h-4 w-4" />}
+          label={s.asignacion_id ? 'Costo (snapshot)' : 'Costo combustible'}
           value={s.costo_combustible != null ? formatCurrency(s.costo_combustible) : '—'}
         />
       </section>
 
       {s.asignacion_id ? (
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="font-semibold text-slate-900">Camión asignado</h2>
-              <p className="mt-1 text-sm text-slate-600">
+        <Card className="p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <TruckIcon className="h-4 w-4 text-primary" />
+                <h2 className="font-semibold tracking-tight">Camión asignado</h2>
+              </div>
+              <p className="text-sm text-muted-foreground">
                 <Link
                   href={`/fleet/${s.camion_id}`}
-                  className="font-mono font-semibold text-brand-700 hover:underline"
+                  className="font-mono font-semibold text-primary hover:underline"
                 >
                   {s.camion_patente}
                 </Link>{' '}
                 · capacidad {s.camion_capacidad} cabezas
               </p>
-              {s.con_sobrecapacidad ? (
-                <p className="mt-2 inline-flex items-center gap-2 rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-200">
-                  ⚠ Asignada con sobrecapacidad
-                </p>
-              ) : null}
             </div>
+            {s.con_sobrecapacidad ? (
+              <Badge variant="destructive">
+                <AlertTriangle className="h-3 w-3" />
+                Asignada con sobrecapacidad
+              </Badge>
+            ) : null}
           </div>
-        </section>
+        </Card>
       ) : null}
 
       <section>
-        <h2 className="mb-3 font-semibold text-slate-900">Ruta</h2>
+        <h2 className="mb-3 font-semibold tracking-tight">Ruta</h2>
         <div className="grid gap-3 lg:grid-cols-3">
           <div className="space-y-3 lg:col-span-1">
             <RoutePoint kind="origen" label={s.origen_label} />
@@ -130,24 +143,40 @@ export default async function RequestDetailPage({ params }: { params: { id: stri
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({
+  icon,
+  label,
+  value,
+  action,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  action?: React.ReactNode;
+}) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className="mt-1 text-xl font-semibold text-slate-900">{value}</div>
-    </div>
+    <Card className="p-4">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          {icon}
+          <span>{label}</span>
+        </div>
+        {action}
+      </div>
+      <div className="mt-1 text-xl font-semibold tracking-tight">{value}</div>
+    </Card>
   );
 }
 
 function RoutePoint({ kind, label }: { kind: 'origen' | 'destino'; label: string }) {
-  const color = kind === 'origen' ? 'bg-emerald-500' : 'bg-red-500';
+  const color = kind === 'origen' ? 'text-emerald-500' : 'text-rose-500';
   return (
-    <div className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-      <span className={`mt-1.5 h-3 w-3 flex-none rounded-full ${color}`} />
+    <Card className="flex items-start gap-3 p-3">
+      <MapPin className={`mt-1 h-4 w-4 shrink-0 ${color}`} />
       <div className="min-w-0">
-        <div className="text-xs font-medium uppercase text-slate-500">{kind}</div>
-        <div className="break-words text-sm text-slate-900">{label}</div>
+        <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{kind}</div>
+        <div className="break-words text-sm font-medium">{label}</div>
       </div>
-    </div>
+    </Card>
   );
 }

@@ -1,7 +1,9 @@
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
+import { ArrowLeft, AlertCircle } from 'lucide-react';
 import { query } from '@/lib/db/client';
 import { getFuelPrice } from '@/lib/repositories/settings';
+import { Card } from '@/components/ui/card';
 import { AssignForm } from './AssignForm';
 
 export const dynamic = 'force-dynamic';
@@ -35,12 +37,10 @@ export default async function AssignPage({ params }: { params: { id: string } })
   if (solRes.rowCount === 0) notFound();
   const solicitud = solRes.rows[0];
 
-  // Si la solicitud no está pendiente, redirigir al detalle.
   if (solicitud.estado !== 'pendiente') {
     redirect(`/requests/${id}`);
   }
 
-  // Camiones activos que NO tengan asignación activa actualmente.
   const camionesRes = await query<Camion>(
     `SELECT c.id, c.patente, c.capacidad_max,
             c.consumo_l_km::float AS consumo_l_km
@@ -56,30 +56,40 @@ export default async function AssignPage({ params }: { params: { id: string } })
   const fuelPrice = await getFuelPrice();
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <div>
-        <Link href={`/requests/${id}`} className="text-sm text-brand-700 hover:underline">
-          ← Volver al detalle
-        </Link>
-        <h1 className="mt-2 text-2xl font-semibold text-slate-900">
-          Asignar camión — {solicitud.solicitante_nombre}
+    <div className="mx-auto max-w-3xl space-y-6 animate-fade-in">
+      <Link
+        href={`/requests/${id}`}
+        className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Volver al detalle
+      </Link>
+
+      <div className="space-y-1">
+        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
+          Asignar camión
         </h1>
-        <p className="mt-1 text-sm text-slate-600">
-          Solicitud #{solicitud.id} · {solicitud.cabezas} cabezas
+        <p className="text-sm text-muted-foreground">
+          {solicitud.solicitante_nombre} · Solicitud #{solicitud.id} · {solicitud.cabezas} cabezas
           {solicitud.distancia_km ? ` · ${solicitud.distancia_km} km` : ' · sin distancia'}
         </p>
       </div>
 
       {solicitud.distancia_km == null ? (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-          ⚠ La solicitud no tiene distancia calculada. No se puede asignar hasta que se
-          recalcule la ruta desde el detalle de la solicitud.
-        </div>
+        <Card className="border-warning/40 bg-warning/5 p-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
+            <p className="text-sm text-foreground">
+              La solicitud no tiene distancia calculada. No se puede asignar hasta que se recalcule la ruta desde el detalle de la solicitud.
+            </p>
+          </div>
+        </Card>
       ) : camionesRes.rowCount === 0 ? (
-        <div className="rounded-lg border border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-700">
-          No hay camiones activos disponibles. Todos están asignados a otras solicitudes o
-          inactivos.
-        </div>
+        <Card className="border-dashed p-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            No hay camiones activos disponibles. Todos están asignados a otras solicitudes o inactivos.
+          </p>
+        </Card>
       ) : (
         <AssignForm
           solicitudId={solicitud.id}

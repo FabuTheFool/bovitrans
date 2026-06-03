@@ -63,9 +63,11 @@ export async function GET(req: NextRequest) {
 /**
  * POST /api/transport-requests
  *
- * Crea una solicitud. Intenta calcular la ruta con OSRM:
- *   - Si tiene éxito → persiste con distancia_km y tiempo_estimado_min.
- *   - Si falla → persiste igual con NULLs y header X-Routing-Status: failed.
+ * Crea una solicitud. Llama a `calcularRuta` que SIEMPRE devuelve un resultado
+ * (OSRM si disponible, sino haversine × 1.3 como fallback). Por eso
+ * distancia_km nunca queda NULL y la asignación no se bloquea.
+ *
+ * Header X-Routing-Status: 'ok' (OSRM real) | 'approximate' (haversine).
  *
  * Implementa US-02. Cubre BR-03 y el escenario 4 de fallback.
  */
@@ -100,8 +102,8 @@ export async function POST(req: NextRequest) {
         body.destino.lat,
         body.destino.lon,
         body.destino.label,
-        ruta?.distancia_km ?? null,
-        ruta?.tiempo_estimado_min ?? null,
+        ruta.distancia_km,
+        ruta.tiempo_estimado_min,
       ],
     );
 
@@ -110,7 +112,7 @@ export async function POST(req: NextRequest) {
       {
         status: 201,
         headers: {
-          'X-Routing-Status': ruta ? 'ok' : 'failed',
+          'X-Routing-Status': ruta.is_approximate ? 'approximate' : 'ok',
         },
       },
     );
