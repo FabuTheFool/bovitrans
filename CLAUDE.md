@@ -84,7 +84,119 @@ Al iniciar una sesión, Claude debe:
 
 ---
 
-## 6. Flujos comunes
+## 6. Design system & filosofía UX
+
+> Este proyecto tiene un design system propio (no shadcn/ui copy-paste).
+> Cualquier nueva UI debe respetar estas convenciones para mantener coherencia.
+
+### 6.1 Filosofía rectora — "Invisible UX"
+
+La interfaz se ignora si el usuario solo quiere completar su tarea; los gestos avanzados aparecen para quien los busca. Reglas concretas:
+
+- **Menos color, más jerarquía**. Los gradients estridentes en textos y botones primarios son anti-pattern. Usar gradient solo en superficies estructurales (aurora background, sidebar header overlay) o atmosféricas (glow detrás del logo en login).
+- **Un click resuelve, no un menú**. Theme toggle, modo selección, ajustes binarios: botón único con animación de icono. Sin dropdowns innecesarios.
+- **Composabilidad sobre destrucción**. Gestos como el chord click son **aditivos** (suman al estado actual) y reversibles vía toggle. ESC siempre limpia.
+- **Discoverable cuando se busca, invisible cuando no**. Lightbulb floating + atajo `?` para shortcuts. La UI no enseña; deja que el usuario explore.
+- **Iteración sobre feedback inmediato**. Si algo "se ve overdone" o "muy invasivo" → cambiar opacidad/saturación antes de cambiar la estructura. La estructura debe sobrevivir muchas iteraciones de tweaking visual.
+
+### 6.2 Tokens y paleta (`app/globals.css`)
+
+Paleta derivada del logo: **violeta** (`hsl(261 38% 52%)`) + **teal** (`hsl(173 65% 42%)`). Tokens semánticos HSL:
+
+```
+--primary       violeta del logo (suavizado para no fatigar)
+--accent        teal del toro (usado como complemento)
+--success       verde
+--warning       ámbar
+--info          azul (para status en_curso — NO chocar con success)
+--destructive   rojo
+
+Cada uno con variante `-soft` (versión muy clara para chips/badges).
+Light y dark con valores HSL distintos para mantener contraste.
+```
+
+Background tintado (no blanco puro / no black neutro):
+- Light: `hsl(270 30% 99%)` (warm-violet sutil)
+- Dark: `hsl(260 25% 7%)` (zinc azulado profundo con hint violeta)
+
+### 6.3 Utilidades de superficie
+
+```css
+.glass         /* backdrop-blur 16px + bg semi-transparente + tinte sutil */
+.glass-strong  /* blur 20px + más opacidad + sombra tintada violeta */
+.bg-brand-gradient    /* violeta → teal (SOLO superficies estructurales) */
+.text-brand-gradient  /* USAR CON MEDIDA — al usuario no le gusta overdone */
+```
+
+Aurora background: 4 orbes radiales blureados a 70px fijos al viewport, definidos en `body::before`. Más intensos en light (porque hay menos contraste de fondo).
+
+### 6.4 Componentes UI (`components/ui/*`)
+
+Construidos sobre Radix primitives + `cva` para variants tipadas + `tailwind-merge` (via `cn()` en `lib/utils.ts`). NO usar otros componentes de librerías externas sin pedir.
+
+| Componente | Variants | Notas |
+|---|---|---|
+| `Button` | default, destructive, outline, secondary, ghost, link, accent | Soporta `asChild` para usar como Link wrapper |
+| `Card` | solid, glass, plain | Default es `glass` |
+| `Badge` | default, secondary, accent, destructive, success, warning, outline, muted | Sumar `info` si hace falta |
+| `Dialog` | — | Z-index `z-[1000]+` (por encima de Leaflet) |
+| `DropdownMenu` | — | Z-index igual |
+| `Tooltip` | — | Provider en sidebar para items colapsados |
+| `Input`, `Label` | — | Usar `htmlFor`/`id` siempre (a11y) |
+| `Skeleton` | — | `bg-muted/60` con pulse |
+
+### 6.5 Layout y navegación
+
+- **Sidebar colapsable** (`components/Sidebar.tsx` + `SidebarContext.tsx`):
+  - 280px expandido ↔ 72px colapsado
+  - Estado persistido en `localStorage` key `bvt:sidebar:collapsed`
+  - Tooltips Radix solo cuando colapsado (labels visibles cuando expandido)
+- **MobileTopbar** drawer animado con framer-motion para < md
+- **Theme toggle**: 1-click directo (resolvedTheme), sin opción "sistema"
+
+### 6.6 Patrones de UI específicos
+
+- **Status chips** (`components/StatusChip.tsx`): icono Lucide + color semántico + ring inset. NO solo color (a11y).
+- **Page loading**: cada ruta importante tiene `loading.tsx` con skeletons que mimean la estructura.
+- **Modales**: SIEMPRE Radix Dialog vía `components/Modal.tsx` (`ConfirmModal`, `PromptModal`). NUNCA `confirm()`/`prompt()` nativos.
+- **Toasts**: `sonner` (configurado en `providers.tsx`). Usar `toast.success/error/info`. NO inline error banners salvo casos de form validation.
+- **A11y mínima obligatoria**: `htmlFor`/`id` en inputs, `aria-invalid`, `aria-describedby`, `role="alert"` en mensajes de error, focus rings visibles, navegación por teclado.
+
+### 6.7 Vocabulario de gestos del dashboard
+
+Si tocás el dashboard o cards de solicitudes, estos gestos están implementados (`DashboardClient.tsx`):
+
+| Gesto | Acción |
+|---|---|
+| Click en card (en select mode) | Toggle individual + update anchor |
+| Shift + click | Range desde anchor (estilo file manager) |
+| Click izq + click der sobre card | Toggle aditivo todas las del mismo estado |
+| Drag rectangle (cualquier zona vacía) | Marquee selection |
+| Shift + drag | Suma al rango actual |
+| Triple-click vacío | Seleccionar todas |
+| Doble-click vacío | Limpiar selección |
+| Doble-click en card sin selección activa | Abrir detalle |
+| ESC | Salir del modo selección |
+| `?` | Abrir / cerrar shortcuts dialog |
+
+Cualquier nuevo gesto debe respetar:
+- Threshold de 4px antes de iniciar drag
+- Suprimir click sintético post-drag vía capture phase
+- `data-no-drag` en elementos chicos interactivos (pencil icon, etc.) para que no inicien drag
+- ESC siempre cierra/sale/limpia
+
+### 6.8 Lecciones de iteración (no rehacer estos errores)
+
+- ❌ Gradients en textos `<h1>` o botones primarios → ✅ texto sólido sobre bg tintado
+- ❌ Botones de modo selección con violeta sólido → ✅ outline + glass + borde sólido visible
+- ❌ Status `en_curso` con teal/accent → ✅ blue (`info` token), no chocaba con success verde
+- ❌ Checkbox de selección encima del StatusChip → ✅ esquina top-left flotando como sticker
+- ❌ Cards solo arrastrables entre cards → ✅ listener global en `document` con exclusiones marcadas
+- ❌ Chord click reemplaza selección → ✅ aditivo + toggle por categoría
+
+---
+
+## 7. Flujos comunes
 
 **Agregar una nueva US al backlog:**
 > Activá el skill `bovitrans-analyst` y generá la US con AC Gherkin (mínimo 2 escenarios) y tareas por capa. Confirmá que cumple los quality gates definidos en el skill.
@@ -97,10 +209,14 @@ Al iniciar una sesión, Claude debe:
 
 ---
 
-## 7. Lo que NO debe hacer Claude en este repo
+## 8. Lo que NO debe hacer Claude en este repo
 
 - Proponer ORMs pesados sin pedirlo: el ejercicio premia el dominio de SQL.
 - Inventar campos no documentados en `BACKLOG.md` o `skills.json`.
 - Saltarse la fase de validación con Zod en boundaries.
 - Hacer commits sin Conventional Commits.
 - Tocar `init.sql` después del primer seed estable; usar migrations.
+- Aplicar gradients estridentes en textos o botones primarios (ver §6.1).
+- Importar librerías de componentes (shadcn, Mantine, MUI) sin pedir — el design system propio en `components/ui/*` debe extenderse, no reemplazarse.
+- Usar `confirm()`, `prompt()` o `alert()` nativos — usar `ConfirmModal` / `PromptModal` / `toast`.
+- Romper la composabilidad de gestos: gestos nuevos deben ser aditivos / toggleables, nunca destructivos sin confirmación.
