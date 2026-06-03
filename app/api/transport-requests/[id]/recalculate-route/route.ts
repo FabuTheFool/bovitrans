@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { query } from '@/lib/db/client';
-import { handleApiError, notFound, businessRule } from '@/lib/api/errors';
+import { handleApiError, notFound } from '@/lib/api/errors';
 import { calcularRuta } from '@/lib/services/routing';
 
 export const dynamic = 'force-dynamic';
@@ -38,11 +38,6 @@ export async function POST(
       { lat: s.origen_lat, lon: s.origen_lon },
       { lat: s.destino_lat, lon: s.destino_lon },
     );
-    if (!ruta) {
-      throw businessRule(
-        'No se pudo calcular la ruta (servicio de routing no disponible).',
-      );
-    }
 
     await query(
       `UPDATE solicitudes
@@ -55,6 +50,7 @@ export async function POST(
       data: {
         distancia_km: ruta.distancia_km,
         tiempo_estimado_min: ruta.tiempo_estimado_min,
+        is_approximate: ruta.is_approximate,
       },
     });
   } catch (err) {

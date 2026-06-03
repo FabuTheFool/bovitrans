@@ -52,16 +52,18 @@ export default function MapPickerInner({
   height = 400,
 }: MapPickerInnerProps) {
   ensureLeafletIconsPatched();
+  // Centro del mapa por defecto: Asunción, Paraguay (-25.28, -57.63).
+  // Si ya hay origen o destino seleccionado, centramos ahí.
   const [center] = useState<L.LatLngExpression>(
     origen
       ? [origen.lat, origen.lon]
       : destino
         ? [destino.lat, destino.lon]
-        : [-33, -56], // Uruguay aprox.
+        : [-23.5, -58.2], // Centro de Paraguay (ligeramente al norte de Asunción para ver mejor el país)
   );
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200">
+    <div className="overflow-hidden rounded-xl border border-border">
       <MapContainer
         center={center}
         zoom={6}

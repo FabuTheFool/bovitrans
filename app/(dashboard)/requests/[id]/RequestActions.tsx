@@ -3,11 +3,14 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { Truck, Unlink, Ban, Play, CheckCircle2, Pencil, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { api, ApiClientError } from '@/lib/client/api-client';
+import { Button } from '@/components/ui/button';
 import { ConfirmModal, PromptModal } from '@/components/Modal';
 import type { SolicitudEstado } from '@/components/StatusChip';
 
-type Action = 'cancel' | 'release' | null;
+type Action = 'cancel' | 'release' | 'start' | 'complete' | null;
 
 export function RequestActions({
   id,
@@ -20,19 +23,19 @@ export function RequestActions({
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<Action>(null);
-  const [error, setError] = useState<string | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [releaseOpen, setReleaseOpen] = useState(false);
+  const [completeOpen, setCompleteOpen] = useState(false);
 
   async function cancelar(motivo: string) {
     setBusy('cancel');
-    setError(null);
     try {
       await api.post(`/api/transport-requests/${id}/cancel`, motivo ? { motivo } : undefined);
+      toast.success('Solicitud cancelada');
       router.refresh();
       setCancelOpen(false);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Error inesperado.');
+      toast.error(err instanceof ApiClientError ? err.message : 'Error inesperado.');
     } finally {
       setBusy(null);
     }
@@ -41,55 +44,94 @@ export function RequestActions({
   async function liberar() {
     if (!asignacionId) return;
     setBusy('release');
-    setError(null);
     try {
       await api.post(`/api/assignments/${asignacionId}/release`);
+      toast.success('Asignación liberada');
       router.refresh();
       setReleaseOpen(false);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Error inesperado.');
+      toast.error(err instanceof ApiClientError ? err.message : 'Error inesperado.');
     } finally {
       setBusy(null);
     }
   }
 
+  async function iniciar() {
+    setBusy('start');
+    try {
+      await api.post(`/api/transport-requests/${id}/start`);
+      toast.success('Viaje iniciado');
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof ApiClientError ? err.message : 'Error inesperado.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function completar() {
+    setBusy('complete');
+    try {
+      await api.post(`/api/transport-requests/${id}/complete`);
+      toast.success('Solicitud completada');
+      router.refresh();
+      setCompleteOpen(false);
+    } catch (err) {
+      toast.error(err instanceof ApiClientError ? err.message : 'Error inesperado.');
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const canEdit = estado === 'pendiente';
   const canAssign = estado === 'pendiente';
+  const canStart = estado === 'asignada';
+  const canComplete = estado === 'en_curso';
   const canRelease = estado === 'asignada' && asignacionId != null;
   const canCancel = estado !== 'completada' && estado !== 'cancelada';
 
   return (
-    <div className="flex flex-col items-end gap-2">
-      <div className="flex flex-wrap gap-2">
-        {canAssign ? (
-          <Link
-            href={`/requests/${id}/assign`}
-            className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-700"
-          >
+    <div className="flex flex-wrap gap-2">
+      {canEdit ? (
+        <Button asChild variant="outline">
+          <Link href={`/requests/${id}/edit`}>
+            <Pencil className="h-4 w-4" />
+            Editar
+          </Link>
+        </Button>
+      ) : null}
+      {canAssign ? (
+        <Button asChild>
+          <Link href={`/requests/${id}/assign`}>
+            <Truck className="h-4 w-4" />
             Asignar camión
           </Link>
-        ) : null}
-        {canRelease ? (
-          <button
-            type="button"
-            onClick={() => setReleaseOpen(true)}
-            disabled={busy !== null}
-            className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-          >
-            Liberar asignación
-          </button>
-        ) : null}
-        {canCancel ? (
-          <button
-            type="button"
-            onClick={() => setCancelOpen(true)}
-            disabled={busy !== null}
-            className="rounded-md border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
-          >
-            Cancelar solicitud
-          </button>
-        ) : null}
-      </div>
-      {error ? <p className="text-xs text-red-600" role="alert">{error}</p> : null}
+        </Button>
+      ) : null}
+      {canStart ? (
+        <Button disabled={busy !== null} onClick={iniciar}>
+          {busy === 'start' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+          Iniciar viaje
+        </Button>
+      ) : null}
+      {canComplete ? (
+        <Button disabled={busy !== null} onClick={() => setCompleteOpen(true)} className="bg-success text-success-foreground hover:bg-success/90">
+          <CheckCircle2 className="h-4 w-4" />
+          Marcar completada
+        </Button>
+      ) : null}
+      {canRelease ? (
+        <Button variant="outline" disabled={busy !== null} onClick={() => setReleaseOpen(true)}>
+          <Unlink className="h-4 w-4" />
+          Liberar asignación
+        </Button>
+      ) : null}
+      {canCancel ? (
+        <Button variant="ghost" disabled={busy !== null} onClick={() => setCancelOpen(true)} className="text-destructive hover:bg-destructive/10 hover:text-destructive">
+          <Ban className="h-4 w-4" />
+          Cancelar
+        </Button>
+      ) : null}
 
       <PromptModal
         open={cancelOpen}
@@ -112,6 +154,16 @@ export function RequestActions({
         cancelLabel="Volver"
         onConfirm={liberar}
         onClose={() => setReleaseOpen(false)}
+      />
+
+      <ConfirmModal
+        open={completeOpen}
+        title="Marcar solicitud como completada"
+        description="El viaje queda cerrado: la solicitud pasa a 'completada' y la asignación activa también. No se puede revertir."
+        confirmLabel="Sí, completar"
+        cancelLabel="Volver"
+        onConfirm={completar}
+        onClose={() => setCompleteOpen(false)}
       />
     </div>
   );
