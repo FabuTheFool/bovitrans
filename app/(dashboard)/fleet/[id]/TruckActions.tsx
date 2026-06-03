@@ -2,7 +2,10 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Power, PowerOff, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { api, ApiClientError } from '@/lib/client/api-client';
+import { Button } from '@/components/ui/button';
 import { ConfirmModal } from '@/components/Modal';
 
 export function TruckActions({
@@ -16,20 +19,19 @@ export function TruckActions({
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const isDeactivate = estado === 'activo';
 
   async function doToggle() {
     setBusy(true);
-    setError(null);
     try {
       await api.patch(`/api/trucks/${id}`, { estado: isDeactivate ? 'inactivo' : 'activo' });
+      toast.success(isDeactivate ? 'Camión dado de baja' : 'Camión reactivado');
       router.refresh();
       setConfirmOpen(false);
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Error inesperado.');
+      toast.error(err instanceof ApiClientError ? err.message : 'Error inesperado.');
     } finally {
       setBusy(false);
     }
@@ -44,28 +46,28 @@ export function TruckActions({
   }
 
   return (
-    <div className="text-right">
+    <div className="flex flex-col items-end gap-1">
       {asignacionesActivas > 0 ? (
-        <p className="mb-1 text-xs text-amber-700">
+        <p className="text-xs text-warning">
           {asignacionesActivas} asignación{asignacionesActivas === 1 ? '' : 'es'} activa
           {asignacionesActivas === 1 ? '' : 's'}
         </p>
       ) : null}
-      <button
+      <Button
         type="button"
+        variant={isDeactivate ? 'outline' : 'default'}
         onClick={onClickToggle}
         disabled={busy}
-        className={
-          isDeactivate
-            ? 'rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50'
-            : 'rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50'
-        }
       >
+        {busy ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : isDeactivate ? (
+          <PowerOff className="h-4 w-4" />
+        ) : (
+          <Power className="h-4 w-4" />
+        )}
         {busy ? 'Procesando…' : isDeactivate ? 'Dar de baja' : 'Reactivar'}
-      </button>
-      {error ? (
-        <p className="mt-2 text-xs text-red-600" role="alert">{error}</p>
-      ) : null}
+      </Button>
 
       <ConfirmModal
         open={confirmOpen}

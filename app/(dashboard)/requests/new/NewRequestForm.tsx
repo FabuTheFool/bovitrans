@@ -2,9 +2,15 @@
 
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import clsx from 'clsx';
+import { Send, Loader2, MapPin, Search } from 'lucide-react';
+import { toast } from 'sonner';
 import { api, ApiClientError } from '@/lib/client/api-client';
 import { MapPicker } from '@/components/map/MapPicker';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
 
 interface Point {
   lat: number;
@@ -27,7 +33,6 @@ export function NewRequestForm() {
   const [destino, setDestino] = useState<Point | null>(null);
   const [modoMapa, setModoMapa] = useState<'origen' | 'destino'>('origen');
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const ids = {
     nombre: useId(),
@@ -37,16 +42,15 @@ export function NewRequestForm() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    setError(null);
 
-    if (!nombre.trim()) return setError('Nombre del solicitante es obligatorio.');
+    if (!nombre.trim()) return toast.error('Nombre del solicitante es obligatorio.');
     const cabezasNum = Number(cabezas);
     if (!Number.isInteger(cabezasNum) || cabezasNum < 1)
-      return setError('Cabezas debe ser un entero ≥ 1.');
-    if (!origen) return setError('Seleccioná el origen en el mapa o buscador.');
-    if (!destino) return setError('Seleccioná el destino en el mapa o buscador.');
+      return toast.error('Cabezas debe ser un entero ≥ 1.');
+    if (!origen) return toast.error('Seleccioná el origen en el mapa o buscador.');
+    if (!destino) return toast.error('Seleccioná el destino en el mapa o buscador.');
     if (origen.lat === destino.lat && origen.lon === destino.lon)
-      return setError('El origen y el destino no pueden coincidir.');
+      return toast.error('El origen y el destino no pueden coincidir.');
 
     setSubmitting(true);
     try {
@@ -57,49 +61,55 @@ export function NewRequestForm() {
         origen,
         destino,
       });
+      toast.success(`Solicitud #${data.id} creada`);
       router.push(`/requests/${data.id}`);
       router.refresh();
     } catch (err) {
-      setError(err instanceof ApiClientError ? err.message : 'Error inesperado.');
+      toast.error(err instanceof ApiClientError ? err.message : 'Error inesperado.');
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-6 lg:grid-cols-5">
-      <div className="space-y-5 lg:col-span-2">
-        <Field id={ids.nombre} label="Nombre del solicitante">
-          <input
+    <form onSubmit={onSubmit} className="grid gap-6 lg:grid-cols-5" noValidate>
+      <Card className="space-y-5 p-6 lg:col-span-2">
+        <div className="space-y-2">
+          <Label htmlFor={ids.nombre}>Nombre del solicitante</Label>
+          <Input
             id={ids.nombre}
             type="text"
             value={nombre}
             onChange={(e) => setNombre(e.target.value)}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-300"
             required
+            placeholder="Estancia La Paz"
           />
-        </Field>
-        <Field id={ids.contacto} label="Contacto (teléfono / email)" optional>
-          <input
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={ids.contacto}>
+            Contacto <span className="ml-1 text-xs text-muted-foreground">(opcional)</span>
+          </Label>
+          <Input
             id={ids.contacto}
             type="text"
             value={contacto}
             onChange={(e) => setContacto(e.target.value)}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-300"
+            placeholder="Teléfono / email"
           />
-        </Field>
-        <Field id={ids.cabezas} label="Cantidad de cabezas">
-          <input
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={ids.cabezas}>Cantidad de cabezas</Label>
+          <Input
             id={ids.cabezas}
             type="number"
             value={cabezas}
             onChange={(e) => setCabezas(e.target.value)}
             min={1}
             step={1}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-300"
             required
+            placeholder="50"
           />
-        </Field>
+        </div>
 
         <GeoPointInput
           label="Origen"
@@ -118,38 +128,21 @@ export function NewRequestForm() {
           onActivar={() => setModoMapa('destino')}
         />
 
-        {error ? (
-          <div
-            role="alert"
-            className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700"
-          >
-            {error}
-          </div>
-        ) : null}
-
-        <div className="flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="rounded-md px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
-          >
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" variant="ghost" onClick={() => router.back()}>
             Cancelar
-          </button>
-          <button
-            type="submit"
-            disabled={submitting}
-            className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-700 disabled:opacity-60"
-          >
+          </Button>
+          <Button type="submit" disabled={submitting}>
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             {submitting ? 'Creando…' : 'Crear solicitud'}
-          </button>
+          </Button>
         </div>
-      </div>
+      </Card>
 
       <div className="lg:col-span-3">
-        <p className="mb-2 text-xs text-slate-600">
+        <p className="mb-2 text-xs text-muted-foreground">
           Hacé click en el mapa para colocar el pin del{' '}
-          <strong>{modoMapa === 'origen' ? 'origen' : 'destino'}</strong>, o usá los buscadores
-          de la izquierda.
+          <strong className="text-foreground">{modoMapa === 'origen' ? 'origen' : 'destino'}</strong>, o usá los buscadores de la izquierda.
         </p>
         <MapPicker
           origen={origen}
@@ -169,37 +162,13 @@ export function NewRequestForm() {
   );
 }
 
-function Field({
-  id,
-  label,
-  optional,
-  children,
-}: {
-  id: string;
-  label: string;
-  optional?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label htmlFor={id} className="block text-sm font-medium text-slate-700">
-        {label}
-        {optional ? <span className="ml-1 text-xs text-slate-400">(opcional)</span> : null}
-      </label>
-      <div className="mt-1">{children}</div>
-    </div>
-  );
-}
-
 async function reverseGeocodeOrFallback(lat: number, lon: number): Promise<string> {
   try {
     const data = await api.get<{ label: string | null }>(
       `/api/geocoding/reverse?lat=${lat}&lon=${lon}`,
     );
     if (data?.label) return data.label;
-  } catch {
-    /* fallback abajo */
-  }
+  } catch { /* fallback */ }
   return `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
 }
 
@@ -243,52 +212,41 @@ function GeoPointInput({
         setLoading(false);
       }
     }, 350);
-    return () => {
-      if (timer.current) clearTimeout(timer.current);
-    };
+    return () => { if (timer.current) clearTimeout(timer.current); };
   }, [q]);
+
+  const color = kind === 'origen' ? 'text-emerald-500' : 'text-rose-500';
 
   return (
     <div
-      className={clsx(
-        'rounded-lg border p-3 transition',
-        activo ? 'border-brand-500 ring-2 ring-brand-100' : 'border-slate-200',
-      )}
       onClick={onActivar}
+      className={cn(
+        'space-y-2 rounded-lg border p-3 transition-all',
+        activo ? 'border-primary ring-2 ring-primary/20' : 'border-border',
+      )}
     >
-      <div className="mb-1 flex items-center justify-between">
-        <span className="text-sm font-medium text-slate-700">
-          <span
-            className={
-              kind === 'origen'
-                ? 'mr-1 inline-block h-2 w-2 rounded-full bg-emerald-500'
-                : 'mr-1 inline-block h-2 w-2 rounded-full bg-red-500'
-            }
-          />
+      <div className="flex items-center justify-between">
+        <Label className="inline-flex items-center gap-1.5">
+          <MapPin className={cn('h-3.5 w-3.5', color)} />
           {label}
-        </span>
-        {activo ? <span className="text-xs text-brand-700">activo en mapa</span> : null}
+        </Label>
+        {activo ? <span className="text-xs text-primary">activo en mapa</span> : null}
       </div>
 
       <div className="relative">
-        <input
+        <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
           type="text"
           value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-            setOpen(true);
-          }}
-          onFocus={() => {
-            setOpen(true);
-            onActivar();
-          }}
+          onChange={(e) => { setQ(e.target.value); setOpen(true); }}
+          onFocus={() => { setOpen(true); onActivar(); }}
           placeholder={value?.label ?? 'Buscar lugar o hacer click en el mapa'}
-          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-200"
+          className="pl-8"
         />
         {open && (loading || results.length > 0) ? (
-          <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md border border-slate-200 bg-white shadow-lg">
+          <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md border border-border bg-popover shadow-lg">
             {loading ? (
-              <li className="px-3 py-2 text-xs text-slate-500">Buscando…</li>
+              <li className="px-3 py-2 text-xs text-muted-foreground">Buscando…</li>
             ) : (
               results.map((r, i) => (
                 <li key={i}>
@@ -299,7 +257,7 @@ function GeoPointInput({
                       setQ('');
                       setOpen(false);
                     }}
-                    className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+                    className="block w-full px-3 py-2 text-left text-sm transition-colors hover:bg-muted"
                   >
                     {r.label}
                   </button>
@@ -307,7 +265,7 @@ function GeoPointInput({
               ))
             )}
             {!loading && results.length === 0 && q.length >= 2 ? (
-              <li className="px-3 py-2 text-xs text-slate-500">
+              <li className="px-3 py-2 text-xs text-muted-foreground">
                 Sin resultados. Probá click en el mapa.
               </li>
             ) : null}
@@ -316,14 +274,17 @@ function GeoPointInput({
       </div>
 
       {value ? (
-        <div className="mt-2 truncate text-xs text-slate-600">
-          📍 {value.label}{' '}
-          <span className="text-slate-400">
-            ({value.lat.toFixed(4)}, {value.lon.toFixed(4)})
+        <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
+          <MapPin className={cn('mt-0.5 h-3 w-3 shrink-0', color)} />
+          <span className="break-words">
+            {value.label}{' '}
+            <span className="text-muted-foreground/60">
+              ({value.lat.toFixed(4)}, {value.lon.toFixed(4)})
+            </span>
           </span>
         </div>
       ) : (
-        <div className="mt-2 text-xs text-slate-500">Aún no seleccionado.</div>
+        <div className="text-xs text-muted-foreground">Aún no seleccionado.</div>
       )}
     </div>
   );

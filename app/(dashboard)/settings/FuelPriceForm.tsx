@@ -2,7 +2,12 @@
 
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import { Save, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { api, ApiClientError } from '@/lib/client/api-client';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export function FuelPriceForm({
   currentAmount,
@@ -14,72 +19,47 @@ export function FuelPriceForm({
   const router = useRouter();
   const [amount, setAmount] = useState(currentAmount.toString());
   const [busy, setBusy] = useState(false);
-  const [feedback, setFeedback] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    setFeedback(null);
     const value = Number(amount);
     if (!Number.isFinite(value) || value <= 0) {
-      setFeedback({ kind: 'err', msg: 'El precio debe ser mayor a 0.' });
+      toast.error('El precio debe ser mayor a 0.');
       return;
     }
     setBusy(true);
     try {
       await api.put('/api/settings/fuel-price', { amount: value });
-      setFeedback({ kind: 'ok', msg: 'Precio actualizado.' });
+      toast.success('Precio actualizado');
       router.refresh();
     } catch (err) {
-      setFeedback({
-        kind: 'err',
-        msg: err instanceof ApiClientError ? err.message : 'Error inesperado.',
-      });
+      toast.error(err instanceof ApiClientError ? err.message : 'Error inesperado.');
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <form onSubmit={onSubmit} className="mt-4 space-y-3" noValidate>
-      <div>
-        <label htmlFor="fuel-price-amount" className="block text-sm font-medium text-slate-700">
-          Nuevo precio ({currency} / L)
-        </label>
-        <div className="mt-1 flex gap-2">
-          <input
+    <form onSubmit={onSubmit} className="space-y-3" noValidate>
+      <div className="space-y-2">
+        <Label htmlFor="fuel-price-amount">Nuevo precio ({currency} / L)</Label>
+        <div className="flex gap-2">
+          <Input
             id="fuel-price-amount"
             type="number"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             min={0.01}
             step={0.01}
-            aria-invalid={feedback?.kind === 'err' ? 'true' : 'false'}
-            aria-describedby={feedback ? 'fuel-price-feedback' : undefined}
-            className="w-40 rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-300"
+            className="w-40"
             required
           />
-          <button
-            type="submit"
-            disabled={busy || Number(amount) === currentAmount}
-            className="rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
+          <Button type="submit" disabled={busy || Number(amount) === currentAmount}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             {busy ? 'Guardando…' : 'Actualizar'}
-          </button>
+          </Button>
         </div>
       </div>
-      {feedback ? (
-        <p
-          id="fuel-price-feedback"
-          role={feedback.kind === 'err' ? 'alert' : 'status'}
-          className={
-            feedback.kind === 'ok'
-              ? 'text-sm text-green-700'
-              : 'text-sm text-red-600'
-          }
-        >
-          {feedback.msg}
-        </p>
-      ) : null}
     </form>
   );
 }
